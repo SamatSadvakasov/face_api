@@ -1,17 +1,20 @@
 from typing import Optional
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, Response, status
 from fastapi.responses import FileResponse
 
 import os
 import cv2
 import numpy as np
 from datetime import datetime
+import time
 
 from sklearn import preprocessing
 
 import tritonclient.grpc as grpcclient
 import tritonclient.http as httpclient
 from recognition import Recognition
+from detection import Detector
+from align_faces import align_img
 import settings
 
 app = FastAPI()
@@ -32,8 +35,8 @@ detector = Detector(triton_client, settings.DETECTOR_SETTINGS[0], settings.DETEC
 recognizer = Recognition(triton_client, settings.RECOGNITION_SETTINGS[0], settings.RECOGNITION_SETTINGS[1], settings.RECOGNITION_SETTINGS[2], settings.RECOGNITION_SETTINGS[3], settings.RECOGNITION_SETTINGS[4])
 
 
-@app.post("/detector/")
-async def get_photo_align_large_files(file: UploadFile = File(...), unique_id: str = Form(...)):
+@app.post("/detector/", status_code=200)
+async def get_photo_align_large_files(response: Response, file: UploadFile = File(...), unique_id: str = Form(...)):
     # check to see if an image was uploaded
     if file is not None:
         # grab the uploaded image
@@ -44,14 +47,11 @@ async def get_photo_align_large_files(file: UploadFile = File(...), unique_id: s
         print('Image shape:', image.shape)
         if image.shape[0] == image.shape[1] == 112:
             res, unique_id = process_faces(image, [0], [0])
-            if len(res) > 0:
-                face_list = [i for i in range(len(res))]
-                return {'unique_id': unique_id, 'faces': face_list, 'filetype': file.content_type, 'size': image.shape}
-            else:
-                message = {'res' : None}
+            return {'result': 'success', 'unique_id': unique_id, 'filetype': file.content_type, 'size': image.shape}
         else:
             # [os.remove(settings.CROPS_FOLDER + f) for f in os.listdir(settings.CROPS_FOLDER)]
             faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
+            print('faces.shape[0]', faces.shape[0])
             if faces.shape[0] == 1:
                 res, unique_id = process_faces(image, faces, landmarks)
                 if len(res) > 0:
@@ -60,27 +60,31 @@ async def get_photo_align_large_files(file: UploadFile = File(...), unique_id: s
                 else:
                     message = {'res' : None}
             elif faces.shape[0] > 1:
-                return {'result': 'more', 'amount': int(faces.shape[0])}
+                response.status_code = status.HTTP_412_PRECONDITION_FAILED
+                return {'result': 'more_than_one_face', 'amount': int(faces.shape[0])}
             else:
                 # There are no faces or no faces that we can detect
-                return {'result': 'no', 'amount': int(faces.shape[0])}
+                response.status_code = status.HTTP_412_PRECONDITION_FAILED
+                return {'result': 'no_faces', 'amount': int(faces.shape[0])}
     else:
-        return {'res': 'No photo provided'}
+        return {'result': 'error', 'message': 'No photo provided'}
 
 
-@app.get("/aligned/")
-async def get_photo_align(date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...)):
+@app.get("/aligned/", status_code=200)
+async def get_photo_align(response: Response, date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...)):
     if unique_id is not None:
         if os.path.exists(settings.CROPS_FOLDER + '/' + date +'/' + unique_id + '/' + 'crop_'+face_id+'.jpg'):
             file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, 'crop_'+face_id+'.jpg')
             return FileResponse(file_path)
         else:
+            response.status_code = status.HTTP_404_NOT_FOUND
             return {'error': 'No such file'}
     else:
-        return {'result': 'Error'}
+        response.status_code = status.HTTP_412_PRECONDITION_FAILED
+        return {'result': 'Error', 'message': 'please, provide unique_id'}
 
 
-@app.post("/detector/get_photo_metadata/")
+@app.post("/detector/get_photo_metadata/", status_code=200)
 async def get_photo_metadata(date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...), top: int = Form(...)):
     img_name = 'align_'+face_id
     if os.path.exists(settings.CROPS_FOLDER+'/'+date+'/'+unique_id+'/'+img_name+'.jpg'):
@@ -99,20 +103,21 @@ def process_faces(img, faces, landmarks):
     face_count = 0
     result = []
 
-    todays_folder = os.path.join(settings.CROPS_FOLDER, datetime.now().strftime("%Y%m%d")) # previous variant: datetime.today().strftime('%d%m%Y')
+    todays_folder = os.path.join(settings.CROPS_FOLDER, datetime.now().strftime("%Y%m%d"))
     print(todays_folder)
     if not os.path.exists(todays_folder):
         os.makedirs(todays_folder)
 
-    img_name = str(round(time.time() * 1000000)) # previous variant: str(time.time()).replace('.','')
+    img_name = str(round(time.time() * 1000000))
     new_img_folder = os.path.join(todays_folder, img_name)
     if not os.path.exists(new_img_folder):
         os.makedirs(new_img_folder)
 
+    # if size of an image is 112 then it is already cropped and aligned
     if img.shape[0] == 112:
-        cv2.imwrite(new_img_folder+'/crop_'+'0.jpg', img)
+        # cv2.imwrite(new_img_folder+'/crop_'+'0.jpg', img)
         cv2.imwrite(new_img_folder+'/align_'+'0.jpg', img)
-        print('Crop saved:', new_img_folder+'/crop_'+'0.jpg', img.shape)
+        print('Aligned image saved:', new_img_folder+'/align_'+'0.jpg', img.shape)
         result.append(face_count)
         face_count += 1
     else:
@@ -123,11 +128,13 @@ def process_faces(img, faces, landmarks):
             width_x = box[2] - box[0]
             # Calculating cropping area
             if landmarks is not None and height_y > 40:
+                '''
                 center_y = box[1] + ((box[3] - box[1])/2)
                 center_x = box[0] + ((box[2] - box[0])/2)
                 rect_y = int(center_y - height_y/2)
                 rect_x = int(center_x - width_x/2)
                 # Cropping an area
+                
                 extender = 56
                 # height side
                 y_start = 0
@@ -154,14 +161,14 @@ def process_faces(img, faces, landmarks):
                     x_end = rect_x+width_x+extender
 
                 cropped_img = img[y_start:y_end, x_start:x_end]
-
+                '''
                 landmark5 = landmarks[i].astype(np.int)
                 aligned = align_img(img, landmark5)
 
                 # save crop and aligned image
-                cv2.imwrite(new_img_folder+'/crop_'+str(i)+'.jpg', cropped_img)
+                # cv2.imwrite(new_img_folder+'/crop_'+str(i)+'.jpg', cropped_img)
                 cv2.imwrite(new_img_folder+'/align_'+str(i)+'.jpg', aligned)
-                print('Crop saved:', new_img_folder+'/crop_'+str(i)+'.jpg', aligned.shape)
+                print('Align saved:', new_img_folder+'/align_'+str(i)+'.jpg', aligned.shape)
                 result.append(face_count)
                 face_count += 1
             else:
