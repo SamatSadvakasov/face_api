@@ -1,0 +1,27 @@
+version: '3'
+services:
+  face_api:
+    image: face_api_image:v1
+    container_name: face_api
+    restart: unless-stopped
+    network: host
+    volumes:
+      - ${PWD}:/app
+    working_dir: /app
+    shm_size: 1g
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    environment:
+      - LC_ALL=C.UTF-8
+      - LANG=C.UTF-8
+    command: uvicorn main:app --host 0.0.0.0 --port 9999 --forwarded-allow-ips "*" --reload
+    depends_on:
+      - tritonserver
+    #deploy:
+    #  resources:
+    #    reservations:
+    #      devices:
+    #        - driver: nvidia
+    #          count: 1
+    #          capabilities: [gpu]

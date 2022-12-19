@@ -11,6 +11,8 @@ rec_model = 'recognize'
 image_size = '900,900'
 im_size=[int(image_size.split(',')[0]), int(image_size.split(',')[1])]
 
+DETECTION_THRESHOLD = 0.95
+
 TRITON_SERVER_SETTINGS = [ip + ':' + grpc_port, protocol, False, True]
 
 DETECTOR_SETTINGS = [det_model, '', 1, protocol, im_size, True, True]
