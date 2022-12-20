@@ -4,9 +4,10 @@ services:
     image: face_api_image:v1
     container_name: face_api
     restart: unless-stopped
-    network: host
+    network_mode: host
     volumes:
       - ${PWD}:/app
+      - /home/talgat/PROJECTS/INFERENCE/crops:/crops
     working_dir: /app
     shm_size: 1g
     ulimits:
@@ -16,8 +17,9 @@ services:
       - LC_ALL=C.UTF-8
       - LANG=C.UTF-8
     command: uvicorn main:app --host 0.0.0.0 --port 9999 --forwarded-allow-ips "*" --reload
-    depends_on:
-      - tritonserver
+    #depends_on:
+    #  - tritonserver
+    # docker run --name face_api -it --network=host -v ${PWD}/face_api:/app face_api_image:v1
     #deploy:
     #  resources:
     #    reservations:

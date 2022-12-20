@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 
 ip = '127.0.0.1'
-http_port = '8000'
-grpc_port = '8001'
+http_port = '30020'
+grpc_port = '30021'
 protocol = 'grpc'
 
 det_model = 'detect'
