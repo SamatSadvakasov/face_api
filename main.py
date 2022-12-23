@@ -99,6 +99,47 @@ async def get_photo_metadata(date: str = Form(...), unique_id: str = Form(...), 
     return message
 
 
+@app.post("/database/add_person_to_face_db/")
+async def add_person_to_face_db(date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...), person_name: str = Form(...), person_surname: str = Form(...), person_secondname: str = Form(...), group_id: int = Form(...)):
+    faiss_index = None
+    message = None
+    # print(face_id, red_id, red_name, group_id)
+    insert_date = datetime.now()
+    # print('PHOTO:',os.path.join(settings.CROPS_FOLDER, date, unique_id, 'crop_'+face_id+'.jpg'))
+    db_image = open(os.path.join(settings.CROPS_FOLDER, date, unique_id, 'crop_'+face_id+'.jpg'), 'rb').read()
+    i_extension = 'jpg'
+
+    file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, 'align_'+face_id+'.jpg')
+    img = cv2.imread(file_path)
+    feature = recognizer.get_feature(img, unique_id+'_align_'+face_id, 0)
+
+    if not os.path.exists(settings.FAISS_INDEX_FILE):
+        faiss_index = fs.index_factory(settings.VECTOR_DIMENSIONS, settings.INDEX_TYPE, fs.METRIC_INNER_PRODUCT)
+    else:
+        faiss_index = fs.read_index(settings.FAISS_INDEX_FILE)
+        # request.session.get('fs_index',fs.index_factory(settings.VECTOR_DIMENSIONS, settings.INDEX_TYPE, fs.METRIC_INNER_PRODUCT))
+    distances = None
+    indexes = None
+    if faiss_index.ntotal > 0:
+        distances, indexes = db_worker.search_from_blacklist_faiss_top_1(faiss_index, feature, 1, settings.FAISS_THRESHOLD)
+        if distances is not None:
+            # red_name = db_worker.search_from_application_blacklist(indexes[0])
+            return {'message': 'Such person exists', 'name': red_name, 'similarity': round(distances[0]*100, 2)}
+
+    faiss_res = db_worker.insert_into_faiss(faiss_index, red_id, feature)
+    fs.write_index(faiss_index, settings.FAISS_INDEX_FILE)
+    print('Number of people in faiss index:', faiss_index.ntotal)
+
+    black_res = db_worker.insert_into_blacklist(red_id, feature)
+    # app_res = db_worker.insert_into_application_blacklist(red_id, red_name, insert_date, db_image, i_extension, group_id)
+    # if faiss_res and black_res and app_res:
+    if faiss_res and black_res:
+        message = {'res': 'Success', 'name': red_name, 'red_id': red_id, 'number of people in faiss': faiss_index.ntotal}
+    else:
+        message = {'res': 'Failed to insert feature to one or more tables.', 'faiss-black-appblack:': [faiss_res, black_res]}
+    return message
+
+
 def process_faces(img, faces, landmarks):
     face_count = 0
     result = []
