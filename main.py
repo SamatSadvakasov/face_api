@@ -16,6 +16,7 @@ from recognition import Recognition
 from detection import Detector
 from align_faces import align_img
 import settings
+from db.powerpostgre import PowerPost
 
 app = FastAPI()
 
@@ -33,10 +34,11 @@ def create_triton_client(server, protocol, verbose, async_set):
 triton_client = create_triton_client(settings.TRITON_SERVER_SETTINGS[0], settings.TRITON_SERVER_SETTINGS[1], settings.TRITON_SERVER_SETTINGS[2], settings.TRITON_SERVER_SETTINGS[3])
 detector = Detector(triton_client, settings.DETECTOR_SETTINGS[0], settings.DETECTOR_SETTINGS[1], settings.DETECTOR_SETTINGS[2], settings.DETECTOR_SETTINGS[3], settings.DETECTOR_SETTINGS[4], settings.DETECTOR_SETTINGS[5], settings.DETECTOR_SETTINGS[6])
 recognizer = Recognition(triton_client, settings.RECOGNITION_SETTINGS[0], settings.RECOGNITION_SETTINGS[1], settings.RECOGNITION_SETTINGS[2], settings.RECOGNITION_SETTINGS[3], settings.RECOGNITION_SETTINGS[4])
+db_worker = PowerPost(settings.PG_CONNECTION[0], settings.PG_CONNECTION[1], settings.PG_CONNECTION[2], settings.PG_CONNECTION[3], settings.PG_CONNECTION[4])
 
 
-@app.post("/detector/", status_code=200)
-async def get_photo_align_large_files(response: Response, file: UploadFile = File(...), unique_id: str = Form(...)):
+@app.post("/detector/detect", status_code=200)
+async def detect_from_photo(response: Response, file: UploadFile = File(...), unique_id: str = Form(...)):
     # check to see if an image was uploaded
     if file is not None:
         # grab the uploaded image
@@ -70,7 +72,7 @@ async def get_photo_align_large_files(response: Response, file: UploadFile = Fil
         return {'result': 'error', 'message': 'No photo provided'}
 
 
-@app.get("/aligned/", status_code=200)
+@app.get("/detector/get_aligned", status_code=200)
 async def get_photo_align(response: Response, date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...)):
     if unique_id is not None:
         if os.path.exists(settings.CROPS_FOLDER + '/' + date +'/' + unique_id + '/' + 'crop_'+face_id+'.jpg'):
@@ -84,8 +86,8 @@ async def get_photo_align(response: Response, date: str = Form(...), unique_id: 
         return {'result': 'Error', 'message': 'please, provide unique_id'}
 
 
-@app.post("/detector/get_photo_metadata/", status_code=200)
-async def get_photo_metadata(date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...), top: int = Form(...)):
+@app.post("/recognition/get_photo_metadata", status_code=200)
+async def get_photo_metadata(response: Response, date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...)):
     img_name = 'align_'+face_id
     if os.path.exists(settings.CROPS_FOLDER+'/'+date+'/'+unique_id+'/'+img_name+'.jpg'):
         file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, img_name+'.jpg')
@@ -94,49 +96,56 @@ async def get_photo_metadata(date: str = Form(...), unique_id: str = Form(...), 
     print('file_path:', file_path)
     img = cv2.imread(file_path)
     feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
-    dct = {unique_id: list(feature)}
-    message = {'result': 'Success', 'similarity': ''}
-    return message
+
+    ids, distances = db_worker.search_from_face_db(feature, settings.RECOGNITION_THRESHOLD)
+    print('identities', ids)
+    if ids is not None:
+        l_name = db_worker.search_from_persons(ids[0])
+        response.status_code = status.HTTP_409_CONFLICT
+        return {
+                'result': 'success',
+                'message': 'Such person exists',
+                'id': ids[0],
+                'name': l_name[0],
+                'similarity': round(distances[0]*100, 2)
+                }
+    else:
+        return {'result': 'error', 'message': 'No IDs found'}
 
 
-@app.post("/database/add_person_to_face_db/")
-async def add_person_to_face_db(date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...), person_name: str = Form(...), person_surname: str = Form(...), person_secondname: str = Form(...), group_id: int = Form(...)):
-    faiss_index = None
-    message = None
-    # print(face_id, red_id, red_name, group_id)
-    insert_date = datetime.now()
-    # print('PHOTO:',os.path.join(settings.CROPS_FOLDER, date, unique_id, 'crop_'+face_id+'.jpg'))
+@app.post("/database/add_person_to_face_db")
+async def add_person_to_face_db(response: Response, 
+                                date: str = Form(...), unique_id: str = Form(...), 
+                                face_id: str = Form(...), person_name: str = Form(...), 
+                                person_surname: str = Form(...), person_secondname: str = Form(...), 
+                                group_id: int = Form(...)):
+    create_time = datetime.now()
+    # -------------------- CHANGE THIS PLACE TO GET ALIGNED IMAGE FROM DATE FOLDER --------------------
     db_image = open(os.path.join(settings.CROPS_FOLDER, date, unique_id, 'crop_'+face_id+'.jpg'), 'rb').read()
-    i_extension = 'jpg'
 
+    # -------------------- CHANGE THIS PLACE TO GET ALIGNED IMAGE FROM DATE FOLDER --------------------
     file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, 'align_'+face_id+'.jpg')
     img = cv2.imread(file_path)
     feature = recognizer.get_feature(img, unique_id+'_align_'+face_id, 0)
 
-    if not os.path.exists(settings.FAISS_INDEX_FILE):
-        faiss_index = fs.index_factory(settings.VECTOR_DIMENSIONS, settings.INDEX_TYPE, fs.METRIC_INNER_PRODUCT)
-    else:
-        faiss_index = fs.read_index(settings.FAISS_INDEX_FILE)
-        # request.session.get('fs_index',fs.index_factory(settings.VECTOR_DIMENSIONS, settings.INDEX_TYPE, fs.METRIC_INNER_PRODUCT))
-    distances = None
-    indexes = None
-    if faiss_index.ntotal > 0:
-        distances, indexes = db_worker.search_from_blacklist_faiss_top_1(faiss_index, feature, 1, settings.FAISS_THRESHOLD)
-        if distances is not None:
-            # red_name = db_worker.search_from_application_blacklist(indexes[0])
-            return {'message': 'Such person exists', 'name': red_name, 'similarity': round(distances[0]*100, 2)}
+    ids, distances = db_worker.search_from_face_db(feature, settings.RECOGNITION_THRESHOLD)
+    print('identities', ids)
+    if distances is not None:
+        l_name = db_worker.search_from_persons(ids[0])
+        response.status_code = status.HTTP_409_CONFLICT
+        return {
+                'result': 'error',
+                'message': 'Such person exists',
+                'name': l_name[0],
+                'similarity': round(distances[0]*100, 2)
+                }
 
-    faiss_res = db_worker.insert_into_faiss(faiss_index, red_id, feature)
-    fs.write_index(faiss_index, settings.FAISS_INDEX_FILE)
-    print('Number of people in faiss index:', faiss_index.ntotal)
-
-    black_res = db_worker.insert_into_blacklist(red_id, feature)
-    # app_res = db_worker.insert_into_application_blacklist(red_id, red_name, insert_date, db_image, i_extension, group_id)
-    # if faiss_res and black_res and app_res:
-    if faiss_res and black_res:
-        message = {'res': 'Success', 'name': red_name, 'red_id': red_id, 'number of people in faiss': faiss_index.ntotal}
+    black_res = db_worker.insert_into_faces(unique_id, feature)
+    app_res = db_worker.insert_into_persons(unique_id, person_name, person_surname, person_secondname, create_time, group_id) # item.red_id, item.red_name, group_id
+    if black_res: # and app_res:
+        message = {'result': 'success', 'name': person_name, 'unique_id': unique_id}
     else:
-        message = {'res': 'Failed to insert feature to one or more tables.', 'faiss-black-appblack:': [faiss_res, black_res]}
+        message = {'result': 'error', 'message': 'Failed to insert feature to one or more tables.', 'black-appblack:': [black_res]} # app_res
     return message
 
 
@@ -156,7 +165,7 @@ def process_faces(img, faces, landmarks):
 
     # if size of an image is 112 then it is already cropped and aligned
     if img.shape[0] == 112:
-        # cv2.imwrite(new_img_folder+'/crop_'+'0.jpg', img)
+        cv2.imwrite(new_img_folder+'/crop_'+'0.jpg', img)
         cv2.imwrite(new_img_folder+'/align_'+'0.jpg', img)
         print('Aligned image saved:', new_img_folder+'/align_'+'0.jpg', img.shape)
         result.append(face_count)
@@ -169,7 +178,6 @@ def process_faces(img, faces, landmarks):
             width_x = box[2] - box[0]
             # Calculating cropping area
             if landmarks is not None and height_y > 40:
-                '''
                 center_y = box[1] + ((box[3] - box[1])/2)
                 center_x = box[0] + ((box[2] - box[0])/2)
                 rect_y = int(center_y - height_y/2)
@@ -202,12 +210,11 @@ def process_faces(img, faces, landmarks):
                     x_end = rect_x+width_x+extender
 
                 cropped_img = img[y_start:y_end, x_start:x_end]
-                '''
                 landmark5 = landmarks[i].astype(np.int)
                 aligned = align_img(img, landmark5)
 
                 # save crop and aligned image
-                # cv2.imwrite(new_img_folder+'/crop_'+str(i)+'.jpg', cropped_img)
+                cv2.imwrite(new_img_folder+'/crop_'+str(i)+'.jpg', cropped_img)
                 cv2.imwrite(new_img_folder+'/align_'+str(i)+'.jpg', aligned)
                 print('Align saved:', new_img_folder+'/align_'+str(i)+'.jpg', aligned.shape)
                 result.append(face_count)
