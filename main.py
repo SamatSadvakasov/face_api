@@ -60,7 +60,7 @@ async def detect_from_photo(response: Response, file: UploadFile = File(...), un
                     face_list = [i for i in range(len(res))]
                     return {'unique_id': unique_id, 'faces': face_list, 'filetype': file.content_type, 'size': image.shape}
                 else:
-                    message = {'res' : None}
+                    return {'result': 'no_faces', 'amount': int(faces.shape[0])}
             elif faces.shape[0] > 1:
                 response.status_code = status.HTTP_412_PRECONDITION_FAILED
                 return {'result': 'more_than_one_face', 'amount': int(faces.shape[0])}
@@ -93,24 +93,52 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
         file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, img_name+'.jpg')
     else:
         return {'ERROR': 'No such file.'}
-    print('file_path:', file_path)
+    # print('file_path:', file_path)
     img = cv2.imread(file_path)
     feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
 
     ids, distances = db_worker.search_from_face_db(feature, settings.RECOGNITION_THRESHOLD)
-    print('identities', ids)
+    # print('identities', ids)
     if ids is not None:
-        l_name = db_worker.search_from_persons(ids[0])
+        l_name = db_worker.search_from_persons(ids)
         response.status_code = status.HTTP_409_CONFLICT
         return {
                 'result': 'success',
                 'message': 'Such person exists',
-                'id': ids[0],
-                'name': l_name[0],
-                'similarity': round(distances[0]*100, 2)
+                'id': ids,
+                'name': l_name,
+                'similarity': round(distances, 2)
                 }
     else:
         return {'result': 'error', 'message': 'No IDs found'}
+
+
+@app.post("/recognition/check_person", status_code=200)
+async def check_person(response: Response, date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...), person_id: str = Form(...)):
+    img_name = 'align_'+face_id
+    if os.path.exists(settings.CROPS_FOLDER+'/'+date+'/'+unique_id+'/'+img_name+'.jpg'):
+        file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, img_name+'.jpg')
+    else:
+        return {'ERROR': 'No such file.'}
+    # print('file_path:', file_path)
+    img = cv2.imread(file_path)
+    feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
+
+    ids, distances = db_worker.one_to_one(feature, person_id, settings.RECOGNITION_THRESHOLD)
+    # print('identities', ids)
+    if ids is not None:
+        l_name = db_worker.search_from_persons(ids)
+        response.status_code = status.HTTP_409_CONFLICT
+        return {
+                'result': 'success',
+                'message': 'Person matches with person in Database',
+                'id': ids,
+                'name': l_name,
+                'similarity': round(distances, 2)
+                }
+    else:
+        return {'result': 'error', 'message': 'No IDs found'}
+
 
 
 @app.post("/database/add_person_to_face_db")
@@ -129,23 +157,23 @@ async def add_person_to_face_db(response: Response,
     feature = recognizer.get_feature(img, unique_id+'_align_'+face_id, 0)
 
     ids, distances = db_worker.search_from_face_db(feature, settings.RECOGNITION_THRESHOLD)
-    print('identities', ids)
+    print('identities', ids, 'distances', distances)
     if distances is not None:
-        l_name = db_worker.search_from_persons(ids[0])
+        l_name = db_worker.search_from_persons(ids)
         response.status_code = status.HTTP_409_CONFLICT
         return {
                 'result': 'error',
                 'message': 'Such person exists',
-                'name': l_name[0],
-                'similarity': round(distances[0]*100, 2)
+                'name': l_name,
+                'similarity': round(distances, 2)
                 }
 
     black_res = db_worker.insert_into_faces(unique_id, feature)
-    app_res = db_worker.insert_into_persons(unique_id, person_name, person_surname, person_secondname, create_time, group_id) # item.red_id, item.red_name, group_id
-    if black_res: # and app_res:
+    app_res = db_worker.insert_into_persons(unique_id, person_name, person_surname, person_secondname, create_time, group_id) # person_iin
+    if black_res and app_res:
         message = {'result': 'success', 'name': person_name, 'unique_id': unique_id}
     else:
-        message = {'result': 'error', 'message': 'Failed to insert feature to one or more tables.', 'black-appblack:': [black_res]} # app_res
+        message = {'result': 'error', 'message': 'Failed to insert feature to one or more tables.', 'black-appblack:': [black_res, app_res]}
     return message
 
 
