@@ -49,7 +49,8 @@ async def detect_from_photo(response: Response, file: UploadFile = File(...), un
         print('Image shape:', image.shape)
         if image.shape[0] == image.shape[1] == 112:
             res, unique_id = process_faces(image, [0], [0])
-            return {'result': 'success', 'unique_id': unique_id, 'filetype': file.content_type, 'size': image.shape}
+            face_list = [i for i in range(len(res))]
+            return {'result': 'success', 'unique_id': unique_id, 'faces': 1, 'filetype': file.content_type, 'size': image.shape}
         else:
             # [os.remove(settings.CROPS_FOLDER + f) for f in os.listdir(settings.CROPS_FOLDER)]
             faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
@@ -58,7 +59,7 @@ async def detect_from_photo(response: Response, file: UploadFile = File(...), un
                 res, unique_id = process_faces(image, faces, landmarks)
                 if len(res) > 0:
                     face_list = [i for i in range(len(res))]
-                    return {'unique_id': unique_id, 'faces': face_list, 'filetype': file.content_type, 'size': image.shape}
+                    return {'result': 'success', 'unique_id': unique_id, 'faces': face_list, 'filetype': file.content_type, 'size': image.shape}
                 else:
                     return {'result': 'no_faces', 'amount': int(faces.shape[0])}
             elif faces.shape[0] > 1:
@@ -182,7 +183,7 @@ def process_faces(img, faces, landmarks):
     result = []
 
     todays_folder = os.path.join(settings.CROPS_FOLDER, datetime.now().strftime("%Y%m%d"))
-    print(todays_folder)
+    # print(todays_folder)
     if not os.path.exists(todays_folder):
         os.makedirs(todays_folder)
 
@@ -195,7 +196,7 @@ def process_faces(img, faces, landmarks):
     if img.shape[0] == 112:
         cv2.imwrite(new_img_folder+'/crop_'+'0.jpg', img)
         cv2.imwrite(new_img_folder+'/align_'+'0.jpg', img)
-        print('Aligned image saved:', new_img_folder+'/align_'+'0.jpg', img.shape)
+        # print('Aligned image saved:', new_img_folder+'/align_'+'0.jpg', img.shape)
         result.append(face_count)
         face_count += 1
     else:
@@ -244,7 +245,7 @@ def process_faces(img, faces, landmarks):
                 # save crop and aligned image
                 cv2.imwrite(new_img_folder+'/crop_'+str(i)+'.jpg', cropped_img)
                 cv2.imwrite(new_img_folder+'/align_'+str(i)+'.jpg', aligned)
-                print('Align saved:', new_img_folder+'/align_'+str(i)+'.jpg', aligned.shape)
+                # print('Align saved:', new_img_folder+'/align_'+str(i)+'.jpg', aligned.shape)
                 result.append(face_count)
                 face_count += 1
             else:

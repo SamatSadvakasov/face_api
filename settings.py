@@ -21,6 +21,8 @@ RECOGNITION_SETTINGS = [rec_model, '', 1, protocol, True, True]
 
 CROPS_FOLDER = '/crops'
 
+TEST_FILES_DIR = '/app/test_files'
+
 pg_server = '127.0.0.1'                             # os.environ['FASTAPI_PG_SERVER'] #10.150.34.13                   #Postgresdb server ip address
 pg_port = 30005                                    # os.environ['FASTAPI_PG_PORT'] #5444                               #Postgresdb server default port
 pg_db = 'face_db'                                   # os.environ['FASTAPI_PG_DB'] #face_reco                              #Postgresdb database name
