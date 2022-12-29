@@ -12,7 +12,7 @@ image_size = '900,900'
 im_size=[int(image_size.split(',')[0]), int(image_size.split(',')[1])]
 
 DETECTION_THRESHOLD = 0.95
-RECOGNITION_THRESHOLD = 70
+RECOGNITION_THRESHOLD = 0.7
 
 TRITON_SERVER_SETTINGS = [ip + ':' + grpc_port, protocol, False, True]
 

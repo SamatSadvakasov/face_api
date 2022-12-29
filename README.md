@@ -18,6 +18,7 @@ Sometimes you can encounter bbox errors. One solution can be to:
 - [ ] Refince face recognition algo
 - [ ] Accept multiple requests at one time - think about it
 - [ ] Function to add person to postgres database (unique_id, vector)
+- [ ] Functionality to compare two photos
 - [ ] Refine code (object reusability, client creation, database connection, configs)
 - [ ] Add scaNN search functionality
 - [ ] Add docker images to docker hub and update readme

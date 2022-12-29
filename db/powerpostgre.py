@@ -52,7 +52,7 @@ class PowerPost:
         cur.execute(select_query)
         result = cur.fetchall()
         cur.close()
-        distance = float(threshold) / 100
+        distance = float(threshold)
         idx = None
         dist = None
         for row in result:
@@ -80,7 +80,7 @@ class PowerPost:
         cur.execute(select_query)
         result = cur.fetchall()
         cur.close()
-        distance = float(threshold) / 100
+        distance = float(threshold)
         idx = None
         dist = None
         for row in result:
