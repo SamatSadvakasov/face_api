@@ -14,10 +14,14 @@ Sometimes you can encounter bbox errors. One solution can be to:
   - Go to rcnn/cython and do (you have to have Cython package installed):
   > python setup.py build_ext --inplace
 
+### CHANGE HISTORY (started this in 30.12.2022)
+- 30.12.2022 - created new functionality (insert_new_person) to insert into faces and person to be able to revert changes if one of the inserts fail 
+
 ### TO-DO
-- [ ] Refince face recognition algo
+- [ ] Revert changes to database if insert to some of the tables fails (finish this part!!!!!!!!!)
+- [ ] Refine face recognition algo
 - [ ] Accept multiple requests at one time - think about it
-- [ ] Function to add person to postgres database (unique_id, vector)
+- [x] Function to add person to postgres database (unique_id, vector)
 - [ ] Functionality to compare two photos
 - [ ] Refine code (object reusability, client creation, database connection, configs)
 - [ ] Add scaNN search functionality

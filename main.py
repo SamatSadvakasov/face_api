@@ -102,7 +102,7 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
     # print('identities', ids)
     if ids is not None:
         l_name = db_worker.search_from_persons(ids)
-        response.status_code = status.HTTP_409_CONFLICT
+        # response.status_code = status.HTTP_409_CONFLICT
         return {
                 'result': 'success',
                 'message': 'Such person exists',
@@ -111,6 +111,7 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
                 'similarity': round(distances, 2)
                 }
     else:
+        response.status_code = status.HTTP_409_CONFLICT
         return {'result': 'error', 'message': 'No IDs found'}
 
 
@@ -129,7 +130,6 @@ async def check_person(response: Response, date: str = Form(...), unique_id: str
     # print('identities', ids)
     if ids is not None:
         l_name = db_worker.search_from_persons(ids)
-        response.status_code = status.HTTP_409_CONFLICT
         return {
                 'result': 'success',
                 'message': 'Person matches with person in Database',
@@ -138,6 +138,7 @@ async def check_person(response: Response, date: str = Form(...), unique_id: str
                 'similarity': round(distances, 2)
                 }
     else:
+        response.status_code = status.HTTP_409_CONFLICT
         return {'result': 'error', 'message': 'No IDs found'}
 
 
@@ -172,8 +173,10 @@ async def add_person_to_face_db(response: Response,
     black_res = db_worker.insert_into_faces(unique_id, feature)
     app_res = db_worker.insert_into_persons(unique_id, person_name, person_surname, person_secondname, create_time, group_id) # person_iin
     if black_res and app_res:
+        response.status_code = status.HTTP_201_CREATED
         message = {'result': 'success', 'name': person_name, 'unique_id': unique_id}
     else:
+        response.status_code = status.HTTP_304_NOT_MODIFIED
         message = {'result': 'error', 'message': 'Failed to insert feature to one or more tables.', 'black-appblack:': [black_res, app_res]}
     return message
 

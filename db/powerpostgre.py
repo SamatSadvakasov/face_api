@@ -93,9 +93,40 @@ class PowerPost:
         else:
             return idx, dist
 
+    
+    def insert_new_person(self, unique_id, vector, person_name, person_surname, person_secondname, create_time, group_id):
+        try:
+            # connect to the PostgresQL database
+            conn = psycopg2.connect(host = self.host, port=self.port, dbname=self.dbname, user=self.user, password=self.pwd)
+            # create a new cursor object
+            cur = conn.cursor()
+            # query to be executed
+            query = """
+                    WITH 
+                        faces_tbl AS
+                        (INSERT INTO fr.faces (unique_id, vector) VALUES (fr.uuid_generate_v4(), CUBE(ARRAY[0.2, 0.1, 0.3])) RETURNING unique_id),
+                        person_tbl AS
+                        (INSERT INTO fr.persons (unique_id, person_name, person_surname, person_secondname, insert_date, group_id, person_iin) VALUES (fr.uuid_generate_v4(), 'Talgat', 'Islam', NULL, current_date, 1, NULL) RETURNING unique_id)
+                    SELECT faces_tbl.unique_id, person_tbl.unique_id
+                    FROM faces_tbl, person_tbl;
+                    """
+            # execute the INSERT statement
+            cur.execute("INSERT INTO fr.faces(unique_id, vector) VALUES ('{}', CUBE(array[{}]))".format(unique_id, ','.join(str(s) for s in vector), ))
+            # commit the changes to the database
+            conn.commit()
+            # close the communication with the PostgresQL database
+            cur.close()
+        except Exception as error:
+            print('Error: ' + str(error))
+            return False
+        finally:
+            if conn is not None:
+                conn.close()
+        return True
+        
+
 
     def insert_into_faces(self, unique_id, vector):
-        conn = None
         try:
             # connect to the PostgresQL database
             conn = psycopg2.connect(host = self.host, port=self.port, dbname=self.dbname, user=self.user, password=self.pwd)
