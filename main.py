@@ -165,7 +165,7 @@ async def add_person_to_face_db(response: Response,
         response.status_code = status.HTTP_409_CONFLICT
         return {
                 'result': 'error',
-                'message': 'Such person exists',
+                'message': 'Person is already registered in database.',
                 'name': l_name,
                 'similarity': round(distances, 2)
                 }
