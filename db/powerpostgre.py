@@ -23,7 +23,7 @@ class PowerPost:
             # create a new cursor object
             cur = conn.cursor()
             # execute the INSERT statement
-            cur.execute("SELECT person_name FROM fr.persons WHERE unique_id = {}".format(unique_id))
+            cur.execute("SELECT person_name FROM fr.persons WHERE unique_id = %(uid)s", {'uid': unique_id})
             # fetching result from database reponse
             blob = cur.fetchone()
             # close the communication with the PostgresQL database
@@ -50,7 +50,7 @@ class PowerPost:
         select_query = """SELECT fr.faces.unique_id, fr.faces.vector,
                       (%(vector)s <-> fr.faces.vector) as distance
                       FROM fr.faces
-                      ORDER BY %(vector)s <-> vector)
+                      ORDER BY %(vector)s <-> vector
                       ASC LIMIT 10"""
         # execute statement
         cur.execute(select_query, {'vector': vector_str})
