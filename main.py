@@ -9,6 +9,7 @@ from datetime import datetime
 import time
 
 from sklearn import preprocessing
+import uuid
 
 import tritonclient.grpc as grpcclient
 import tritonclient.http as httpclient
@@ -148,7 +149,7 @@ async def add_person_to_face_db(response: Response,
                                 date: str = Form(...), unique_id: str = Form(...), 
                                 face_id: str = Form(...), person_name: str = Form(...), 
                                 person_surname: str = Form(...), person_secondname: str = Form(...), 
-                                group_id: int = Form(...)):
+                                group_id: str = Form(...)):
     create_time = datetime.now()
     # -------------------- CHANGE THIS PLACE TO GET ALIGNED IMAGE FROM DATE FOLDER --------------------
     db_image = open(os.path.join(settings.CROPS_FOLDER, date, unique_id, 'crop_'+face_id+'.jpg'), 'rb').read()
@@ -170,15 +171,18 @@ async def add_person_to_face_db(response: Response,
                 'similarity': round(distances, 2)
                 }
 
-    black_res = db_worker.insert_into_faces(unique_id, feature)
-    app_res = db_worker.insert_into_persons(unique_id, person_name, person_surname, person_secondname, create_time, group_id) # person_iin
-    if black_res and app_res:
-        response.status_code = status.HTTP_201_CREATED
-        message = {'result': 'success', 'name': person_name, 'unique_id': unique_id}
-    else:
-        response.status_code = status.HTTP_304_NOT_MODIFIED
-        message = {'result': 'error', 'message': 'Failed to insert feature to one or more tables.', 'black-appblack:': [black_res, app_res]}
-    return message
+    res = db_worker.insert_new_person(unique_id, feature, person_name, person_surname, person_secondname, create_time, group_id, "123456789012")
+    print(res)
+    return {'result': res}
+    # black_res = db_worker.insert_into_faces(unique_id, feature)
+    # app_res = db_worker.insert_into_persons(unique_id, person_name, person_surname, person_secondname, create_time, group_id) # person_iin
+    # if black_res and app_res:
+    #     response.status_code = status.HTTP_201_CREATED
+    #     message = {'result': 'success', 'name': person_name, 'unique_id': unique_id}
+    # else:
+    #     response.status_code = status.HTTP_304_NOT_MODIFIED
+    #     message = {'result': 'error', 'message': 'Failed to insert feature to one or more tables.', 'black-appblack:': [black_res, app_res]}
+    # return message
 
 
 def process_faces(img, faces, landmarks):
@@ -190,7 +194,8 @@ def process_faces(img, faces, landmarks):
     if not os.path.exists(todays_folder):
         os.makedirs(todays_folder)
 
-    img_name = str(round(time.time() * 1000000))
+    # img_name = str(round(time.time() * 1000000))
+    img_name = str(uuid.uuid4())
     new_img_folder = os.path.join(todays_folder, img_name)
     if not os.path.exists(new_img_folder):
         os.makedirs(new_img_folder)
