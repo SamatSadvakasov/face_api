@@ -13,6 +13,7 @@ import tritonclient.http as httpclient
 from recognition import Recognition
 from detection import Detector
 import settings
+import utils
 from db.powerpostgre import PowerPost
 
 app = FastAPI()
@@ -45,7 +46,7 @@ async def detect_from_photo(response: Response, file: UploadFile = File(...), un
         image = cv2.imdecode(image, cv2.IMREAD_COLOR)
         # print('Image shape:', image.shape)
         if image.shape[0] == image.shape[1] == 112:
-            res, unique_id = process_faces(image, [0], [0])
+            res, unique_id = utils.process_faces(image, [0], [0])
             face_list = [i for i in range(len(res))]
             return {'result': 'success', 'unique_id': unique_id, 'faces': 1, 'filetype': file.content_type, 'size': image.shape}
         else:
@@ -53,7 +54,7 @@ async def detect_from_photo(response: Response, file: UploadFile = File(...), un
             faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
             # print('faces.shape[0]', faces.shape[0])
             if faces.shape[0] == 1:
-                res, unique_id = process_faces(image, faces, landmarks)
+                res, unique_id = utils.process_faces(image, faces, landmarks)
                 if len(res) > 0:
                     face_list = [i for i in range(len(res))]
                     return {'result': 'success', 'unique_id': unique_id, 'faces': face_list, 'filetype': file.content_type, 'size': image.shape}
@@ -114,29 +115,27 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
 @app.post("/recognition/check_person", status_code=200)
 async def check_person(response: Response, date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...), person_id: str = Form(...)):
     img_name = 'align_'+face_id
-    if os.path.exists(settings.CROPS_FOLDER+'/'+date+'/'+unique_id+'/'+img_name+'.jpg'):
-        file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, img_name+'.jpg')
-    else:
-        return {'ERROR': 'No such file.'}
-    # print('file_path:', file_path)
-    img = cv2.imread(file_path)
-    feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
+    file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, img_name+'.jpg')
+    if os.path.exists(file_path):
+        img = cv2.imread(file_path)
+        feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
 
-    ids, distances = db_worker.one_to_one(feature, person_id, settings.RECOGNITION_THRESHOLD)
-    # print('identities', ids)
-    if ids is not None:
-        l_name = db_worker.search_from_persons(ids)
-        return {
-                'result': 'success',
-                'message': 'Person matches with person in Database',
-                'id': ids,
-                'name': l_name,
-                'similarity': round(distances, 2)
-                }
+        ids, distances = db_worker.one_to_one(feature, person_id, settings.RECOGNITION_THRESHOLD)
+        if ids is not None:
+            l_name = db_worker.search_from_persons(ids)
+            return {
+                    'result': 'success',
+                    'message': 'Person matches with person in Database',
+                    'id': ids,
+                    'name': l_name,
+                    'similarity': round(distances, 2)
+                    }
+        else:
+            response.status_code = status.HTTP_409_CONFLICT
+            return {'result': 'error', 'message': 'No IDs found.'}
     else:
-        response.status_code = status.HTTP_409_CONFLICT
-        return {'result': 'error', 'message': 'No IDs found'}
-
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return {'result': 'error', 'message': 'No such file.'}
 
 
 @app.post("/database/add_person_to_face_db")
@@ -146,29 +145,32 @@ async def add_person_to_face_db(response: Response,
                                 person_surname: str = Form(...), person_secondname: str = Form(...), 
                                 group_id: str = Form(...)):
     create_time = datetime.now()
-    # -------------------- CHANGE THIS PLACE TO GET ALIGNED IMAGE FROM DATE FOLDER --------------------
-    db_image = open(os.path.join(settings.CROPS_FOLDER, date, unique_id, 'crop_'+face_id+'.jpg'), 'rb').read()
-
-    # -------------------- CHANGE THIS PLACE TO GET ALIGNED IMAGE FROM DATE FOLDER --------------------
+    # getting cropped images from folder - uncomment following line if you want to upload image into your database table
+    # db_image = open(os.path.join(settings.CROPS_FOLDER, date, unique_id, 'crop_'+face_id+'.jpg'), 'rb').read()
+    # getting cropped and aligned image needed to obtain embeddings
     file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, 'align_'+face_id+'.jpg')
-    img = cv2.imread(file_path)
-    feature = recognizer.get_feature(img, unique_id+'_align_'+face_id, 0)
+    if os.path.exists(file_path):
+        img = cv2.imread(file_path)
+        feature = recognizer.get_feature(img, unique_id+'_align_'+face_id, 0)
 
-    ids, distances = db_worker.search_from_face_db(feature, settings.RECOGNITION_THRESHOLD)
-    print('identities', ids, 'distances', distances)
-    if distances is not None:
-        l_name = db_worker.search_from_persons(ids)
-        response.status_code = status.HTTP_409_CONFLICT
-        return {
-                'result': 'error',
-                'message': 'Person is already registered in database.',
-                'name': l_name,
-                'similarity': round(distances, 2)
-                }
+        ids, distances = db_worker.search_from_face_db(feature, settings.RECOGNITION_THRESHOLD)
+        print('identities', ids, 'distances', distances)
+        if distances is not None:
+            l_name = db_worker.search_from_persons(ids)
+            response.status_code = status.HTTP_409_CONFLICT
+            return {
+                    'result': 'error',
+                    'message': 'Person is already registered in database.',
+                    'name': l_name,
+                    'similarity': round(distances, 2)
+                    }
 
-    result = db_worker.insert_new_person(unique_id, feature, person_name, person_surname, person_secondname, create_time, group_id, "123456789012")
-    if result:
-        return {'result': 'success', 'message': 'Successfully inserted new person.', 'name': person_name, 'unique_id': unique_id}
+        result = db_worker.insert_new_person(unique_id, feature, person_name, person_surname, person_secondname, create_time, group_id, "123456789012")
+        if result:
+            return {'result': 'success', 'message': 'Successfully inserted new person.', 'name': person_name, 'unique_id': unique_id}
+        else:
+            response.status_code = status.HTTP_304_NOT_MODIFIED
+            return {'result': 'error', 'message': 'Failed to insert vector to one or more tables.', 'name': person_name, '` unique_id': unique_id}
     else:
-        response.status_code = status.HTTP_304_NOT_MODIFIED
-        return {'result': 'error', 'message': 'Failed to insert vector to one or more tables.', 'name': person_name, '` unique_id': unique_id}
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return {'result': 'error', 'message': 'No such file.'}

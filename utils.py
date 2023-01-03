@@ -7,7 +7,7 @@ from datetime import datetime
 from align_faces import align_img
 import settings
 
-def calculate_distance(db_result, vector, threshold):
+def calculate_cosine_distance(db_result, vector, threshold):
     distance = float(threshold)
     idx = None
     dist = None

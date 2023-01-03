@@ -1,9 +1,6 @@
 import psycopg2
-from psycopg2 import sql
 from psycopg2.extensions import AsIs
 import numpy as np
-from shutil import copyfile
-from datetime import datetime, timezone
 
 
 class PowerPost:

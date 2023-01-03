@@ -26,6 +26,7 @@ Sometimes you can encounter bbox errors. One solution can be to:
 - [ ] Refine face recognition algo
 - [ ] Accept multiple requests at one time - think about it
 - [ ] Refine code (object reusability, client creation, database connection, configs)
+- [ ] Add Metadata and Docs descriptions according to [FastAPI Docs](https://fastapi.tiangolo.com/tutorial/metadata/)
 - [ ] Add scaNN search functionality
 - [ ] Add license checking at startup - connect to license server during installation to obtain license file or write to license db mac
 - [ ] Add docker images to docker hub and update readme
