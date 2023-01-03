@@ -15,15 +15,20 @@ Sometimes you can encounter bbox errors. One solution can be to:
   > python setup.py build_ext --inplace
 
 ### CHANGE HISTORY (started this in 30.12.2022)
-- 30.12.2022 - created new functionality (insert_new_person) to insert into faces and person to be able to revert changes if one of the inserts fail 
+- 30.12.2022 - created new functionality (insert_new_person) to insert into faces and person to be able to revert changes if one of the inserts fail
+- 02.01.2023 - changed SQL scripts to a new (more secure) style, created utils.py
 
 ### TO-DO
+- [x] Function to add person to postgres database (unique_id, vector)
+- [ ] Finish utils.py
 - [ ] Revert changes to database if insert to some of the tables fails (finish this part!!!!!!!!!)
+- [ ] Functionality to compare two photos
 - [ ] Refine face recognition algo
 - [ ] Accept multiple requests at one time - think about it
-- [x] Function to add person to postgres database (unique_id, vector)
-- [ ] Functionality to compare two photos
 - [ ] Refine code (object reusability, client creation, database connection, configs)
 - [ ] Add scaNN search functionality
+- [ ] Add license checking at startup - connect to license server during installation to obtain license file or write to license db mac
 - [ ] Add docker images to docker hub and update readme
-- [ ] Create documentation
+- [ ] List all licenses in one file
+- [ ] Connect with MLOps pipeline
+- [ ] Create documentation (dev, user)
