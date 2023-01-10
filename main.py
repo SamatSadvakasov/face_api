@@ -91,9 +91,10 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
         img = cv2.imread(file_path)
         feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
 
-        ids, distances = db_worker.search_from_face_db(feature, settings.RECOGNITION_THRESHOLD)
+        db_result = db_worker.search_from_face_db(feature)
         # print('identities', ids)
-        if ids is not None:
+        if len(db_result) > 0:
+            ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)
             l_name = db_worker.search_from_persons(ids)
             # response.status_code = status.HTTP_409_CONFLICT
             return {
@@ -116,14 +117,16 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
 async def check_person(response: Response, date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...), person_id: str = Form(...)):
     img_name = 'align_'+face_id
     file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, img_name+'.jpg')
+    print(file_path)
+    print('Path exists:', os.path.exists(file_path))
     if os.path.exists(file_path):
         img = cv2.imread(file_path)
         feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
 
         db_result = db_worker.one_to_one(feature, person_id)
         print(type(db_result))
-        print(type(db_result[0]))
         if len(db_result) > 0: # is not None
+            print(type(db_result[0]))
             ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)
             l_name = db_worker.search_from_persons(ids)
             return {
@@ -135,7 +138,7 @@ async def check_person(response: Response, date: str = Form(...), unique_id: str
                     }
         else:
             response.status_code = status.HTTP_409_CONFLICT
-            return {'result': 'error', 'message': 'No IDs found.'}
+            return {'result': 'error', 'message': 'No IDs found. Either ID you entered is invalid or person does not exist in database.'}
     else:
         response.status_code = status.HTTP_404_NOT_FOUND
         return {'result': 'error', 'message': 'No such file.'}
@@ -146,7 +149,7 @@ async def add_person_to_face_db(response: Response,
                                 date: str = Form(...), unique_id: str = Form(...), 
                                 face_id: str = Form(...), person_name: str = Form(...), 
                                 person_surname: str = Form(...), person_secondname: str = Form(...), 
-                                group_id: str = Form(...)):
+                                group_id: str = Form(...), person_iin: str = Form(...)):
     create_time = datetime.now()
     # getting cropped images from folder - uncomment following line if you want to upload image into your database table
     # db_image = open(os.path.join(settings.CROPS_FOLDER, date, unique_id, 'crop_'+face_id+'.jpg'), 'rb').read()
@@ -156,9 +159,10 @@ async def add_person_to_face_db(response: Response,
         img = cv2.imread(file_path)
         feature = recognizer.get_feature(img, unique_id+'_align_'+face_id, 0)
 
-        ids, distances = db_worker.search_from_face_db(feature, settings.RECOGNITION_THRESHOLD)
-        print('identities', ids, 'distances', distances)
-        if distances is not None:
+        db_result = db_worker.search_from_face_db(feature)
+        if len(db_result) > 0:
+            ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)
+            print('identities', ids, 'distances', distances)
             l_name = db_worker.search_from_persons(ids)
             response.status_code = status.HTTP_409_CONFLICT
             return {
@@ -168,7 +172,7 @@ async def add_person_to_face_db(response: Response,
                     'similarity': round(distances, 2)
                     }
 
-        result = db_worker.insert_new_person(unique_id, feature, person_name, person_surname, person_secondname, create_time, group_id, "123456789012")
+        result = db_worker.insert_new_person(unique_id, feature, person_name, person_surname, person_secondname, create_time, group_id, person_iin)
         if result:
             return {'result': 'success', 'message': 'Successfully inserted new person.', 'name': person_name, 'unique_id': unique_id}
         else:

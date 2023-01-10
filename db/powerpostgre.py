@@ -34,43 +34,51 @@ class PowerPost:
         return blob
 
 
-    def search_from_face_db(self, vector, threshold):
-        # connect to the PostgresQL database
-        # FLAGS.psql_server, FLAGS.psql_server_port, FLAGS.psql_db, FLAGS.psql_user, FLAGS.psql_user_pass
-        conn = psycopg2.connect(host=self.host, port=self.port, dbname=self.dbname, user=self.user,
-                                password=self.pwd)
-        # create a new cursor object
-        cur = conn.cursor()
-        # convert vector to SQL-readable text
-        vector_str = AsIs('CUBE(ARRAY[' + str(vector.tolist()).strip('[|]') + '])')
-        # SQL query
-        select_query = """SELECT fr.faces.unique_id, fr.faces.vector,
-                      (%(vector)s <-> fr.faces.vector) as distance
-                      FROM fr.faces
-                      ORDER BY %(vector)s <-> vector
-                      ASC LIMIT 10"""
-        # execute statement
-        cur.execute(select_query, {'vector': vector_str})
-        # fetch all results from database response
-        result = cur.fetchall()
-        # close the communication with the PostgresQL database
-        cur.close()
-        distance = float(threshold)
-        idx = None
-        dist = None
-        for row in result:
-            vec = np.fromstring(row[1][1:-1], dtype=float, sep=',')
-            try:
-                dist = np.dot(vec,vector)
-                if dist > distance:
-                    idx = row[0]
-            except Exception as error:
-                print('Error: ' + str(error))
-                return idx, dist
-        if idx is not None:
-            return idx, dist*100
-        else:
-            return idx, dist
+    def search_from_face_db(self, vector):
+        try:
+            # connect to the PostgresQL database
+            # FLAGS.psql_server, FLAGS.psql_server_port, FLAGS.psql_db, FLAGS.psql_user, FLAGS.psql_user_pass
+            conn = psycopg2.connect(host=self.host, port=self.port, dbname=self.dbname, user=self.user,
+                                    password=self.pwd)
+            # create a new cursor object
+            cur = conn.cursor()
+            # convert vector to SQL-readable text
+            vector_str = AsIs('CUBE(ARRAY[' + str(vector.tolist()).strip('[|]') + '])')
+            # SQL query
+            select_query = """SELECT fr.faces.unique_id, fr.faces.vector,
+                        (%(vector)s <-> fr.faces.vector) as distance
+                        FROM fr.faces
+                        ORDER BY %(vector)s <-> vector
+                        ASC LIMIT 10"""
+            # execute statement
+            cur.execute(select_query, {'vector': vector_str})
+            # fetch all results from database response
+            result = cur.fetchall()
+            # close the communication with the PostgresQL database
+            cur.close()
+        except Exception as error:
+            print('Error: ' + str(error))
+            return []
+        finally:
+            if conn is not None:
+                conn.close()
+        return result
+        # distance = float(threshold)
+        # idx = None
+        # dist = None
+        # for row in result:
+        #     vec = np.fromstring(row[1][1:-1], dtype=float, sep=',')
+        #     try:
+        #         dist = np.dot(vec,vector)
+        #         if dist > distance:
+        #             idx = row[0]
+        #     except Exception as error:
+        #         print('Error: ' + str(error))
+        #         return idx, dist
+        # if idx is not None:
+        #     return idx, dist*100
+        # else:
+        #     return idx, dist
 
 
     def one_to_one(self, vector, person_id):
@@ -92,10 +100,10 @@ class PowerPost:
             # fetch all results from database response
             result = cur.fetchall()
             # close the communication with the PostgresQL database
-            # cur.close()
+            cur.close()
         except Exception as error:
             print('Error: ' + str(error))
-            return False
+            return []
         finally:
             if conn is not None:
                 conn.close()
