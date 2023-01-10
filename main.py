@@ -44,7 +44,6 @@ async def detect_from_photo(response: Response, file: UploadFile = File(...), un
         name = file.filename
         image = np.asarray(bytearray(data), dtype="uint8")
         image = cv2.imdecode(image, cv2.IMREAD_COLOR)
-        # print('Image shape:', image.shape)
         if image.shape[0] == image.shape[1] == 112:
             res, unique_id = utils.process_faces(image, [0], [0])
             face_list = [i for i in range(len(res))]
@@ -52,7 +51,6 @@ async def detect_from_photo(response: Response, file: UploadFile = File(...), un
         else:
             # [os.remove(settings.CROPS_FOLDER + f) for f in os.listdir(settings.CROPS_FOLDER)]
             faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
-            # print('faces.shape[0]', faces.shape[0])
             if faces.shape[0] == 1:
                 res, unique_id = utils.process_faces(image, faces, landmarks)
                 if len(res) > 0:
@@ -70,7 +68,7 @@ async def detect_from_photo(response: Response, file: UploadFile = File(...), un
                 return {'result': 'no_faces', 'amount': int(faces.shape[0])}
     else:
         response.status_code = status.HTTP_404_NOT_FOUND
-        return {'result': 'error', 'message': 'No photo provided'}
+        return {'result': 'error', 'message': 'No photo provided. Please, check that you are sending correct file.'}
 
 
 @app.get("/detector/get_aligned", status_code=200)
@@ -92,11 +90,9 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
         feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
 
         db_result = db_worker.search_from_face_db(feature)
-        # print('identities', ids)
         if len(db_result) > 0:
             ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)
             l_name = db_worker.search_from_persons(ids)
-            # response.status_code = status.HTTP_409_CONFLICT
             return {
                     'result': 'success',
                     'message': {
@@ -110,22 +106,19 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
             return {'result': 'error', 'message': 'No IDs found'}
     else:
         response.status_code = status.HTTP_404_NOT_FOUND
-        return {'result': 'error', 'message': 'No such file.'}
+        return {'result': 'error', 'message': 'No such file. Please, check unique_id, face_id or date.'}
 
 
 @app.post("/recognition/check_person", status_code=200)
 async def check_person(response: Response, date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...), person_id: str = Form(...)):
     img_name = 'align_'+face_id
     file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, img_name+'.jpg')
-    print(file_path)
-    print('Path exists:', os.path.exists(file_path))
     if os.path.exists(file_path):
         img = cv2.imread(file_path)
         feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
 
         db_result = db_worker.one_to_one(feature, person_id)
-        print(type(db_result))
-        if len(db_result) > 0: # is not None
+        if len(db_result) > 0:
             print(type(db_result[0]))
             ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)
             l_name = db_worker.search_from_persons(ids)
@@ -141,7 +134,7 @@ async def check_person(response: Response, date: str = Form(...), unique_id: str
             return {'result': 'error', 'message': 'No IDs found. Either ID you entered is invalid or person does not exist in database.'}
     else:
         response.status_code = status.HTTP_404_NOT_FOUND
-        return {'result': 'error', 'message': 'No such file.'}
+        return {'result': 'error', 'message': 'No such file. Please, check unique_id, face_id or date.'}
 
 
 @app.post("/database/add_person_to_face_db")
@@ -162,7 +155,6 @@ async def add_person_to_face_db(response: Response,
         db_result = db_worker.search_from_face_db(feature)
         if len(db_result) > 0:
             ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)
-            print('identities', ids, 'distances', distances)
             l_name = db_worker.search_from_persons(ids)
             response.status_code = status.HTTP_409_CONFLICT
             return {
@@ -180,4 +172,4 @@ async def add_person_to_face_db(response: Response,
             return {'result': 'error', 'message': 'Failed to insert vector to one or more tables.', 'name': person_name, '` unique_id': unique_id}
     else:
         response.status_code = status.HTTP_404_NOT_FOUND
-        return {'result': 'error', 'message': 'No such file.'}
+        return {'result': 'error', 'message': 'No such file. Please, check unique_id, face_id or date.'}
