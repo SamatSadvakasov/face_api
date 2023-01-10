@@ -21,11 +21,12 @@ Sometimes you can encounter bbox errors. One solution can be to:
 ### TO-DO
 - [x] Function to add person to postgres database (unique_id, vector)
 - [ ] Finish utils.py
-- [ ] Revert changes to database if insert to some of the tables fails (finish this part!!!!!!!!!)
+- [x] Revert changes to database if insert to some of the tables fails (finish this part!!!!!!!!!)
 - [ ] Functionality to compare two photos
-- [ ] Refine face recognition algo
+- [ ] Finish unit-tests
 - [ ] Accept multiple requests at one time - think about it
 - [ ] Refine code (object reusability, client creation, database connection, configs)
+- [ ] Refine face recognition algo
 - [ ] Add Metadata and Docs descriptions according to [FastAPI Docs](https://fastapi.tiangolo.com/tutorial/metadata/)
 - [ ] Add scaNN search functionality
 - [ ] Add license checking at startup - connect to license server during installation to obtain license file or write to license db mac

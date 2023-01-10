@@ -120,8 +120,11 @@ async def check_person(response: Response, date: str = Form(...), unique_id: str
         img = cv2.imread(file_path)
         feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
 
-        ids, distances = db_worker.one_to_one(feature, person_id, settings.RECOGNITION_THRESHOLD)
-        if ids is not None:
+        db_result = db_worker.one_to_one(feature, person_id)
+        print(type(db_result))
+        print(type(db_result[0]))
+        if len(db_result) > 0: # is not None
+            ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)
             l_name = db_worker.search_from_persons(ids)
             return {
                     'result': 'success',

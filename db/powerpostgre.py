@@ -73,37 +73,45 @@ class PowerPost:
             return idx, dist
 
 
-    def one_to_one(self, vector, person_id, threshold):
-        # connect to the PostgresQL database
-        conn = psycopg2.connect(host=self.host, port=self.port, dbname=self.dbname, user=self.user,
-                                password=self.pwd)
-        # create a new cursor object
-        cur = conn.cursor()
-        # convert vector to SQL-readable text
-        vector_str = AsIs('CUBE(ARRAY[' + str(vector.tolist()).strip('[|]') + '])')
-        # select statement
-        select_query = """SELECT fr.faces.unique_id, fr.faces.vector,
-                      (%(vector)s <-> fr.faces.vector) as distance
-                      FROM fr.faces
-                      WHERE unique_id=%(uid)s"""
-        # execute statement
-        cur.execute(select_query, {'vector': vector_str, 'uid': person_id})
-        # fetch all results from database response
-        result = cur.fetchall()
-        # close the communication with the PostgresQL database
-        cur.close()
-        distance = float(threshold)
-        idx = None
-        dist = None
-        for row in result:
-            vec = np.fromstring(row[1][1:-1], dtype=float, sep=',')
-            dist = np.dot(vec,vector)
-            if dist > distance:
-                idx = row[0]
-        if idx is not None:
-            return idx, dist*100
-        else:
-            return idx, dist
+    def one_to_one(self, vector, person_id):
+        try:
+            # connect to the PostgresQL database
+            conn = psycopg2.connect(host=self.host, port=self.port, dbname=self.dbname, user=self.user,
+                                    password=self.pwd)
+            # create a new cursor object
+            cur = conn.cursor()
+            # convert vector to SQL-readable text
+            vector_str = AsIs('CUBE(ARRAY[' + str(vector.tolist()).strip('[|]') + '])')
+            # select statement
+            select_query = """SELECT fr.faces.unique_id, fr.faces.vector,
+                        (%(vector)s <-> fr.faces.vector) as distance
+                        FROM fr.faces
+                        WHERE unique_id=%(uid)s"""
+            # execute statement
+            cur.execute(select_query, {'vector': vector_str, 'uid': person_id})
+            # fetch all results from database response
+            result = cur.fetchall()
+            # close the communication with the PostgresQL database
+            # cur.close()
+        except Exception as error:
+            print('Error: ' + str(error))
+            return False
+        finally:
+            if conn is not None:
+                conn.close()
+        return result
+        # distance = float(threshold)
+        # idx = None
+        # dist = None
+        # for row in result:
+        #     vec = np.fromstring(row[1][1:-1], dtype=float, sep=',')
+        #     dist = np.dot(vec,vector)
+        #     if dist > distance:
+        #         idx = row[0]
+        # if idx is not None:
+        #     return idx, dist*100
+        # else:
+        #     return idx, dist
 
 
     def insert_new_person(self, unique_id, vector, person_name, person_surname, person_secondname, create_time, group_id, person_iin):
