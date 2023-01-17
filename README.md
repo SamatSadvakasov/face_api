@@ -20,10 +20,11 @@ Sometimes you can encounter bbox errors. One solution can be to:
 
 ### TO-DO
 - [x] Function to add person to postgres database (unique_id, vector)
-- [ ] Finish utils.py
+- [x] Finish utils.py
 - [x] Revert changes to database if insert to some of the tables fails (finish this part!!!!!!!!!)
 - [ ] Functionality to compare two photos
 - [ ] Finish unit-tests
+- [ ] Write comments for each function
 - [ ] Accept multiple requests at one time - think about it
 - [ ] Refine code (object reusability, client creation, database connection, configs)
 - [ ] Refine face recognition algo

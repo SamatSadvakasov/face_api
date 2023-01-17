@@ -1,5 +1,4 @@
 from fastapi.testclient import TestClient
-from freezegun import freeze_time
 import settings
 import os
 
@@ -7,7 +6,6 @@ from .main import app
 
 client = TestClient(app)
 
-@freeze_time('')
 def test_detect_from_photo_aligned_photo():
     test_file = os.path.join(settings.TEST_FILES_DIR, 'Iliya_test.png')
     files = {'file': ('Iliya_test.png', open(test_file, 'rb'))}
@@ -22,7 +20,6 @@ def test_detect_from_photo_fullsize_photo():
     response = client.post('/detector/detect', files=files)
     assert response.status_code == 200
     assert response.json() == {'result': 'success', 'unique_id': 1672033247808148, 'faces': [0], 'filetype': "image/jpeg", 'size': [1200,1200,3]}
-
 
 
 ## check_person wrong date

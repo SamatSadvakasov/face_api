@@ -6,7 +6,6 @@ import os
 import cv2
 import numpy as np
 from datetime import datetime
-import time
 
 import tritonclient.grpc as grpcclient
 import tritonclient.http as httpclient
@@ -36,7 +35,7 @@ db_worker = PowerPost(settings.PG_CONNECTION[0], settings.PG_CONNECTION[1], sett
 
 
 @app.post("/detector/detect", status_code=200)
-async def detect_from_photo(response: Response, file: UploadFile = File(...), unique_id: str = Form(...)):
+async def detect_from_photo(response: Response, file: UploadFile = File(...)):
     # check to see if an image was uploaded
     if file is not None:
         # grab the uploaded image
@@ -72,7 +71,7 @@ async def detect_from_photo(response: Response, file: UploadFile = File(...), un
 
 
 @app.get("/detector/get_aligned", status_code=200)
-async def get_photo_align(response: Response, date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...)):
+async def get_aligned_photo(response: Response, date: str = Form(...), unique_id: str = Form(...), face_id: str = Form(...)):
     file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, 'crop_'+face_id+'.jpg')
     if os.path.exists(file_path):
         return FileResponse(file_path)
@@ -99,7 +98,7 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
                                 'id': ids,
                                 'name': l_name,
                                 'similarity': round(distances, 2)
-                            }   
+                            }
                 }
         else:
             response.status_code = status.HTTP_409_CONFLICT
@@ -173,3 +172,54 @@ async def add_person_to_face_db(response: Response,
     else:
         response.status_code = status.HTTP_404_NOT_FOUND
         return {'result': 'error', 'message': 'No such file. Please, check unique_id, face_id or date.'}
+
+
+@app.post("/detector/compare", status_code=200)
+async def compare_two_photos(response: Response, file_1: UploadFile = File(...), file_2: UploadFile = File(...)):
+    # check to see if an image was uploaded
+    if file_1 is not None and file_2 is not None:
+        feature_list = []
+        for file in [file_1, file_2]:
+            # grab the uploaded image
+            data = await file.read()
+            unique_id = str(round(time.time() * 1000000))
+            name = file.filename
+            image = np.asarray(bytearray(data), dtype="uint8")
+            try:
+                image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+            except:
+                return {'result': False, 'message': 'One photo is broken or empty'}
+            # print('Image shape:', image.shape)
+            faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
+            if faces.shape[0] > 0:
+                for i in range(faces.shape[0]):
+                    box = faces[i].astype(np.int)
+                    # Getting the size of head rectangle
+                    height_y = box[3] - box[1]
+                    width_x = box[2] - box[0]
+                    # Calculating cropping area
+                    if landmarks is not None and height_y > 40:
+                        center_y = box[1] + ((box[3] - box[1])/2)
+                        center_x = box[0] + ((box[2] - box[0])/2)
+                        rect_y = int(center_y - height_y/2)
+                        rect_x = int(center_x - width_x/2)
+                        # Get face alignment
+                        landmark5 = landmarks[i].astype(np.int)
+                        aligned = align_img(image, landmark5)
+                        # Get 512-d embedding from aligned image
+                        feature = recognizer.get_feature(aligned, unique_id+'_'+name, 0)
+                        feature_list.append(feature)
+                        # print('Added:', name)
+                    else:
+                        return {'result': False, 'message': 'Face not detected or sharp angle'}
+            else:
+                # There are no faces or no faces that we can detect
+                return {'result': False, 'message': 'No faces or no faces that we can detect '}
+        cosine_dist = np.dot(feature_list[0], feature_list[1])
+        if int(cosine_dist*100) > 0:
+            similarity = int(cosine_dist*100)
+        else:
+            similarity = 0
+        return {'result': True, 'message': similarity}
+    else:
+        return {'result': False, 'message': 'No photo provided'}
