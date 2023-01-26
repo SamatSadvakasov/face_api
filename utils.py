@@ -19,6 +19,26 @@ def calculate_cosine_distance(db_result, vector, threshold):
     return idx, dist
 
 
+def get_alignment(face, landmarks, image):
+    box = face.astype(np.int)
+    # Getting the size of head rectangle
+    height_y = box[3] - box[1]
+    width_x = box[2] - box[0]
+    # Calculating cropping area
+    if landmarks is not None and height_y > settings.min_head_size:
+        center_y = box[1] + ((box[3] - box[1])/2)
+        center_x = box[0] + ((box[2] - box[0])/2)
+        rect_y = int(center_y - height_y/2)
+        rect_x = int(center_x - width_x/2)
+        # Get face alignment
+        landmark5 = landmarks.astype(np.int)
+        aligned = align_img(image, landmark5)
+        return aligned
+    else:
+        return None
+
+
+
 def process_faces(img, faces, landmarks):
     face_count = 0
     result = []

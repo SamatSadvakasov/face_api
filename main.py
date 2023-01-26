@@ -14,6 +14,7 @@ from detection import Detector
 import settings
 import utils
 from db.powerpostgre import PowerPost
+import time
 
 app = FastAPI()
 
@@ -193,23 +194,11 @@ async def compare_two_photos(response: Response, file_1: UploadFile = File(...),
             faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
             if faces.shape[0] > 0:
                 for i in range(faces.shape[0]):
-                    box = faces[i].astype(np.int)
-                    # Getting the size of head rectangle
-                    height_y = box[3] - box[1]
-                    width_x = box[2] - box[0]
-                    # Calculating cropping area
-                    if landmarks is not None and height_y > 40:
-                        center_y = box[1] + ((box[3] - box[1])/2)
-                        center_x = box[0] + ((box[2] - box[0])/2)
-                        rect_y = int(center_y - height_y/2)
-                        rect_x = int(center_x - width_x/2)
-                        # Get face alignment
-                        landmark5 = landmarks[i].astype(np.int)
-                        aligned = align_img(image, landmark5)
+                    aligned = utils.get_alignment(faces[i], landmarks[i], image)
+                    if aligned is not None:
                         # Get 512-d embedding from aligned image
                         feature = recognizer.get_feature(aligned, unique_id+'_'+name, 0)
                         feature_list.append(feature)
-                        # print('Added:', name)
                     else:
                         return {'result': False, 'message': 'Face not detected or sharp angle'}
             else:
@@ -217,7 +206,7 @@ async def compare_two_photos(response: Response, file_1: UploadFile = File(...),
                 return {'result': False, 'message': 'No faces or no faces that we can detect '}
         cosine_dist = np.dot(feature_list[0], feature_list[1])
         if int(cosine_dist*100) > 0:
-            similarity = int(cosine_dist*100)
+            similarity = cosine_dist
         else:
             similarity = 0
         return {'result': True, 'message': similarity}

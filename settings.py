@@ -10,6 +10,7 @@ det_model = 'detect'
 rec_model = 'recognize'
 image_size = '900,900'
 im_size=[int(image_size.split(',')[0]), int(image_size.split(',')[1])]
+min_head_size = 40
 
 DETECTION_THRESHOLD = 0.95
 RECOGNITION_THRESHOLD = 0.7
