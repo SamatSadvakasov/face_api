@@ -1,10 +1,11 @@
 # from typing import Optional
 from fastapi import FastAPI, File, UploadFile, Form, Response, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 import os
 import cv2
 import numpy as np
+import io
 from datetime import datetime
 
 import tritonclient.grpc as grpcclient
@@ -212,3 +213,45 @@ async def compare_two_photos(response: Response, file_1: UploadFile = File(...),
         return {'result': True, 'message': similarity}
     else:
         return {'result': False, 'message': 'No photo provided'}
+
+
+@app.post("/detector/detect_and_draw", status_code=200)
+async def detect_and_draw(response: Response, file: UploadFile = File(...)):
+    # check to see if an image was uploaded
+    if file is not None:
+        # grab the uploaded image
+        data = await file.read()
+        name = file.filename
+        image = np.asarray(bytearray(data), dtype="uint8")
+        image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+        if image.shape[0] == image.shape[1] == 112:
+            res, unique_id, img = utils.process_and_draw_rectangles(image, [0], [0])
+            face_list = [i for i in range(len(res))]
+            return {'result': 'success', 'unique_id': unique_id, 'faces': 1, 'filetype': file.content_type, 'size': image.shape}
+        else:
+            faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
+            if faces.shape[0] == 1:
+                res, unique_id, img = utils.process_and_draw_rectangles(image, faces, landmarks)
+                if len(res) > 0:
+                    # face_list = [i for i in range(len(res))]
+                    # return {'result': 'success', 'unique_id': unique_id, 'faces': face_list, 'filetype': file.content_type, 'size': image.shape}
+                    # Encode processed image back to bytes
+                    print(img.shape)
+                    is_success, buffer = cv2.imencode(".jpg", img)
+                    io_buf = io.BytesIO(buffer)
+                    # print(type(buffer))
+                    # return Response(content=buffer.tobytes(), media_type="image/jpeg")
+                    return FileResponse(unique_id)
+                else:
+                    response.status_code = status.HTTP_412_PRECONDITION_FAILED
+                    return {'result': 'no_faces', 'amount': int(faces.shape[0])}
+            elif faces.shape[0] > 1:
+                response.status_code = status.HTTP_412_PRECONDITION_FAILED
+                return {'result': 'more_than_one_face', 'amount': int(faces.shape[0])}
+            else:
+                # There are no faces or no faces that we can detect
+                response.status_code = status.HTTP_412_PRECONDITION_FAILED
+                return {'result': 'no_faces', 'amount': int(faces.shape[0])}
+    else:
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return {'result': 'error', 'message': 'No photo provided. Please, check that you are sending correct file.'}

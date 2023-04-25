@@ -22,12 +22,12 @@ Sometimes you can encounter bbox errors. One solution can be to:
 - [x] Function to add person to postgres database (unique_id, vector)
 - [x] Finish utils.py
 - [x] Revert changes to database if insert to some of the tables fails (finish this part!!!!!!!!!)
-- [ ] Functionality to compare two photos
+- [x] Functionality to compare two photos
 - [ ] Finish unit-tests
 - [ ] Write comments for each function
 - [ ] Accept multiple requests at one time - think about it
 - [ ] Refine code (object reusability, client creation, database connection, configs)
-- [ ] Refine face recognition algo
+- [ ] Refine face recognition algo - change QMagFace as it may have some errors during deployment
 - [ ] Add Metadata and Docs descriptions according to [FastAPI Docs](https://fastapi.tiangolo.com/tutorial/metadata/)
 - [ ] Add scaNN search functionality
 - [ ] Add license checking at startup - connect to license server during installation to obtain license file or write to license db mac
