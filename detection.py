@@ -65,6 +65,21 @@ def parse_model_grpc_detection(model_metadata, model_config):
 
     return (model_config.max_batch_size, input_metadata.name, output_metadata, input_metadata.datatype)
 
+def cpu_parse_model_grpc_detection(model_metadata):
+    """
+    Check the configuration of a model to make sure it meets the
+    requirements for an image classification network (as expected by
+    this client)
+    """
+    if len(model_metadata.inputs) != 1:
+        raise Exception("expecting 1 input, got {}".format(
+            len(model_metadata.inputs)))
+
+    input_metadata = model_metadata.inputs[0]
+    output_metadata = model_metadata.outputs
+
+    return (1, input_metadata.name, output_metadata, input_metadata.datatype)
+
 
 class UserData:
     def __init__(self):
@@ -72,7 +87,7 @@ class UserData:
 
 
 class Detector:
-    def __init__(self, triton_client, model_name, model_version, batch_size, protocol, scales, async_set=False, streaming=False):
+    def __init__(self, triton_client, use_cpu, model_name, model_version, batch_size, protocol, scales, async_set=False, streaming=False):
         self.triton_client = triton_client
         self.scales = scales
         self.batch_size = batch_size
@@ -85,6 +100,7 @@ class Detector:
         # Make sure the model matches our requirements, and get some
         # properties of the model that we need for preprocessing
         self.detection_model_metadata = None
+        self.use_cpu = use_cpu
         # print(self.triton_client)
         # print(self.model_name)
         # print(self.model_version)
@@ -97,7 +113,10 @@ class Detector:
             print("failed to retrieve the metadata: " + str(e))
             sys.exit(1)
         try:
-            self.detection_model_config = self.triton_client.get_model_config(
+            if self.use_cpu:
+                self.detection_model_config = None
+            else:
+                self.detection_model_config = self.triton_client.get_model_config(
                                     model_name=model_name, model_version=model_version)
         except InferenceServerException as e:
             print("failed to retrieve the config: " + str(e))
@@ -107,7 +126,10 @@ class Detector:
         self.output_name = None
         self.dtype = None
         if self.protocol == "grpc":
-            self.max_batch_size, self.input_name, self.output_metadata, self.dtype = parse_model_grpc_detection(self.detection_model_metadata, self.detection_model_config.config)
+            if self.use_cpu:
+                self.max_batch_size, self.input_name, self.output_metadata, self.dtype = cpu_parse_model_grpc_detection(self.detection_model_metadata)
+            else:
+                self.max_batch_size, self.input_name, self.output_metadata, self.dtype = parse_model_grpc_detection(self.detection_model_metadata, self.detection_model_config.config)
         else:
             self.max_batch_size, self.input_name, self.output_metadata, self.dtype = parse_model_http_detection(self.detection_model_metadata, self.detection_model_config)
         """------------------------DETECTION------------------------"""
@@ -150,6 +172,10 @@ class Detector:
         images_data.append(input_blob)
         filenames.append(filename)
 
+        print('cpu:', self.use_cpu)
+        if self.use_cpu:
+            return input_blob, scales, im_shape
+
         return images_data, scales, filenames, im_shape
         # return input_blob, scales, im_shape
 
@@ -185,15 +211,16 @@ class Detector:
 
 
     # response, output_names, threshold, im_scale, scales,  input_filenames, max_batch_size
-    def triton_postprocessing(self, results, output_names, threshold, im_scale, scales, filenames, max_batch_size):
+    def triton_postprocessing(self, results, output_names, threshold, im_scale, scales):
         """
         Post-process results to show classifications.
         """
+        print('results:', results)
         output_dict = {}
         outputs = []
         for output_name in output_names:
-            # print(output_name)
-            # print(len(results.as_numpy(output_name)))
+            print('output name:', output_name)
+            print('len(results.as_numpy(output_name)):', len(results.as_numpy(output_name)))
             outputs.append(results.as_numpy(output_name))
 
         faces, landmarks = postprocess(outputs, threshold, 0, im_scale, scales)
@@ -278,6 +305,26 @@ class Detector:
             # else:
             #    this_id = response.get_response()["id"]
             # print("Request {}, file name {}, batch size {}".format(this_id, fname, FLAGS.batch_size))
-
-            faces, landmarks = self.triton_postprocessing(response, output_names, detection_threshold, im_scale, self.scales, input_filenames, self.max_batch_size)
+            faces, landmarks = self.triton_postprocessing(response, output_names, detection_threshold, im_scale, self.scales)
         return faces, landmarks
+
+    
+    def cpu_detect(self, img, unique_id, detection_threshold):
+        image_data, im_scale, im_shape = self.frame_preprocess(img, self.scales, unique_id)
+
+        model_input_name = self.detection_model_metadata.inputs[0].name
+        infer_input = grpcclient.InferInput(model_input_name, image_data.shape, self.detection_model_metadata.inputs[0].datatype)
+        infer_input.set_data_from_numpy(image_data)
+        results = self.triton_client.infer(self.model_name, [infer_input])
+
+        output_names = ['face_rpn_cls_prob_reshape_stride32',
+                        'face_rpn_bbox_pred_stride32',
+                        'face_rpn_landmark_pred_stride32',
+                        'face_rpn_cls_prob_reshape_stride16',
+                        'face_rpn_bbox_pred_stride16',
+                        'face_rpn_landmark_pred_stride16',
+                        'face_rpn_cls_prob_reshape_stride8',
+                        'face_rpn_bbox_pred_stride8',
+                        'face_rpn_landmark_pred_stride8']
+
+        return self.triton_postprocessing(results, output_names, detection_threshold, im_scale, self.scales)

@@ -3,6 +3,7 @@ from fastapi import FastAPI, File, UploadFile, Form, Response, status
 from fastapi.responses import FileResponse, StreamingResponse
 
 import os
+import sys
 import cv2
 import numpy as np
 import io
@@ -21,18 +22,40 @@ app = FastAPI()
 
 def create_triton_client(server, protocol, verbose, async_set, cpu_server):
     triton_client = None
-    if protocol == "grpc":
-        # Create gRPC client for communicating with the server
-        triton_client = grpcclient.InferenceServerClient(url=server, verbose=verbose)
+    if settings.use_cpu:
+        try:
+            if protocol == "grpc":
+                # Create gRPC client for communicating with the server
+                triton_client = grpcclient.InferenceServerClient(url=cpu_server, verbose=verbose)
+                triton_client.is_server_live()
+            else:
+                # Specify large enough concurrency to handle the number of requests.
+                concurrency = 20 if async_set else 1
+                triton_client = httpclient.InferenceServerClient(url=cpu_server, verbose=verbose, concurrency=concurrency)
+            print('Connected to CPU Model Server')
+        except Exception as e:
+            print("CPU client creation failed: " + str(e))
+            # sys.exit(1)
     else:
-        # Specify large enough concurrency to handle the number of requests.
-        concurrency = 20 if async_set else 1
-        triton_client = httpclient.InferenceServerClient(url=server, verbose=verbose, concurrency=concurrency)
+        try:
+            if protocol == "grpc":
+                # Create gRPC client for communicating with the server
+                triton_client = grpcclient.InferenceServerClient(url=server, verbose=verbose)
+                triton_client.is_server_live()
+            else:
+                # Specify large enough concurrency to handle the number of requests.
+                concurrency = 20 if async_set else 1
+                triton_client = httpclient.InferenceServerClient(url=server, verbose=verbose, concurrency=concurrency)
+            print('Connected to GPU Model Server')
+        except Exception as e:
+            print("GPU client creation failed: " + str(e))
+            triton_client = None
+            # sys.exit(1)
     return triton_client
 
 triton_client = create_triton_client(settings.TRITON_SERVER_SETTINGS[0], settings.TRITON_SERVER_SETTINGS[1], settings.TRITON_SERVER_SETTINGS[2], settings.TRITON_SERVER_SETTINGS[3], settings.TRITON_SERVER_SETTINGS[4])
-detector = Detector(triton_client, settings.DETECTOR_SETTINGS[0], settings.DETECTOR_SETTINGS[1], settings.DETECTOR_SETTINGS[2], settings.DETECTOR_SETTINGS[3], settings.DETECTOR_SETTINGS[4], settings.DETECTOR_SETTINGS[5], settings.DETECTOR_SETTINGS[6])
-recognizer = Recognition(triton_client, settings.RECOGNITION_SETTINGS[0], settings.RECOGNITION_SETTINGS[1], settings.RECOGNITION_SETTINGS[2], settings.RECOGNITION_SETTINGS[3], settings.RECOGNITION_SETTINGS[4])
+detector = Detector(triton_client, settings.use_cpu, settings.DETECTOR_SETTINGS[0], settings.DETECTOR_SETTINGS[1], settings.DETECTOR_SETTINGS[2], settings.DETECTOR_SETTINGS[3], settings.DETECTOR_SETTINGS[4], settings.DETECTOR_SETTINGS[5], settings.DETECTOR_SETTINGS[6])
+recognizer = Recognition(triton_client, settings.use_cpu, settings.RECOGNITION_SETTINGS[0], settings.RECOGNITION_SETTINGS[1], settings.RECOGNITION_SETTINGS[2], settings.RECOGNITION_SETTINGS[3], settings.RECOGNITION_SETTINGS[4])
 db_worker = PowerPost(settings.PG_CONNECTION[0], settings.PG_CONNECTION[1], settings.PG_CONNECTION[2], settings.PG_CONNECTION[3], settings.PG_CONNECTION[4])
 
 
@@ -51,7 +74,12 @@ async def detect_from_photo(response: Response, file: UploadFile = File(...)):
             return {'result': 'success', 'unique_id': unique_id, 'faces': 1, 'filetype': file.content_type, 'size': image.shape}
         else:
             # [os.remove(settings.CROPS_FOLDER + f) for f in os.listdir(settings.CROPS_FOLDER)]
-            faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
+            faces = None
+            landmarks = None
+            if settings.use_cpu:
+                faces, landmarks = detector.cpu_detect(image, name, settings.DETECTION_THRESHOLD)
+            else:
+                faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
             if faces.shape[0] == 1:
                 res, unique_id = utils.process_faces(image, faces, landmarks)
                 if len(res) > 0:
@@ -88,20 +116,30 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
     file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, img_name+'.jpg')
     if os.path.exists(file_path):
         img = cv2.imread(file_path)
-        feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
+        feature = None
+        if settings.use_cpu:
+            feature = recognizer.cpu_get_feature(img, unique_id+'_'+img_name)
+        else:
+            feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
 
+        # get top one - revise
         db_result = db_worker.search_from_face_db(feature)
+        # print('db_result:', db_result[0][1])
+        #vec = np.fromstring(db_result[0][1][1:-1], dtype=float, sep=',')
+        #print(vec)
+        #print(np.dot(vec, feature))
         if len(db_result) > 0:
             ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)
-            l_name = db_worker.search_from_persons(ids)
-            return {
-                    'result': 'success',
-                    'message': {
-                                'id': ids,
-                                'name': l_name,
-                                'similarity': round(distances, 2)
-                            }
-                }
+            if ids is not None:
+                l_name = db_worker.search_from_persons(ids)
+                return {
+                        'result': 'success',
+                        'message': {
+                                    'id': ids,
+                                    'name': l_name,
+                                    'similarity': round(distances, 2)
+                                }
+                    }
         else:
             response.status_code = status.HTTP_409_CONFLICT
             return {'result': 'error', 'message': 'No IDs found'}
@@ -116,20 +154,25 @@ async def check_person(response: Response, date: str = Form(...), unique_id: str
     file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, img_name+'.jpg')
     if os.path.exists(file_path):
         img = cv2.imread(file_path)
-        feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
+        if settings.use_cpu:
+            feature = recognizer.cpu_get_feature(img, unique_id+'_'+img_name)
+        else:
+            feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
 
+        print('cosine:', np.dot(feature,feature))
         db_result = db_worker.one_to_one(feature, person_id)
         if len(db_result) > 0:
-            print(type(db_result[0]))
+            # print(type(db_result[0]))
             ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)
-            l_name = db_worker.search_from_persons(ids)
-            return {
-                    'result': 'success',
-                    'message': 'Person matches with person in Database',
-                    'id': ids,
-                    'name': l_name,
-                    'similarity': round(distances, 2)
-                    }
+            if ids is not None:
+                l_name = db_worker.search_from_persons(ids)
+                return {
+                        'result': 'success',
+                        'message': 'Person matches with person in Database',
+                        'id': ids,
+                        'name': l_name,
+                        'similarity': round(distances, 2)
+                        }
         else:
             response.status_code = status.HTTP_409_CONFLICT
             return {'result': 'error', 'message': 'No IDs found. Either ID you entered is invalid or person does not exist in database.'}
@@ -151,19 +194,24 @@ async def add_person_to_face_db(response: Response,
     file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, 'align_'+face_id+'.jpg')
     if os.path.exists(file_path):
         img = cv2.imread(file_path)
-        feature = recognizer.get_feature(img, unique_id+'_align_'+face_id, 0)
+        feature = None
+        if settings.use_cpu:
+            feature = recognizer.cpu_get_feature(img, unique_id)
+        else:
+            feature = recognizer.get_feature(img, unique_id, 0)
 
         db_result = db_worker.search_from_face_db(feature)
         if len(db_result) > 0:
             ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)
-            l_name = db_worker.search_from_persons(ids)
-            response.status_code = status.HTTP_409_CONFLICT
-            return {
-                    'result': 'error',
-                    'message': 'Person is already registered in database.',
-                    'name': l_name,
-                    'similarity': round(distances, 2)
-                    }
+            if ids is not None:
+                l_name = db_worker.search_from_persons(ids)
+                response.status_code = status.HTTP_409_CONFLICT
+                return {
+                        'result': 'error',
+                        'message': 'Person is already registered in database.',
+                        'name': l_name,
+                        'similarity': round(distances, 2)
+                        }
 
         result = db_worker.insert_new_person(unique_id, feature, person_name, person_surname, person_secondname, create_time, group_id, person_iin)
         if result:

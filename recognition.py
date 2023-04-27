@@ -84,14 +84,38 @@ def parse_model_http(model_metadata, model_config):
     return (max_batch_size, input_metadata['name'], output_metadata['name'], input_metadata['datatype'])
 
 
+def cpu_parse_model_grpc(model_metadata):
+    """
+    Check the configuration of a model to make sure it meets the
+    requirements for an image classification network (as expected by
+    this client)
+    """
+    if len(model_metadata.inputs) != 1:
+        raise Exception("expecting 1 input, got {}".format(
+            len(model_metadata.inputs)))
+    if len(model_metadata.outputs) != 1:
+        raise Exception("expecting 1 output, got {}".format(
+            len(model_metadata.outputs)))
+
+    input_metadata = model_metadata.inputs[0]
+    output_metadata = model_metadata.outputs[0]
+
+    if output_metadata.datatype != "FP32":
+        raise Exception("expecting output datatype to be FP32, model '" +
+                        model_metadata.name + "' output type is " +
+                        output_metadata.datatype)
+
+    return (1, input_metadata.name, output_metadata.name, input_metadata.datatype)
+
 class UserData:
     def __init__(self):
         self._completed_requests = queue.Queue()
 
 
 class Recognition:
-    def __init__(self, triton_client, model_name, model_version, batch_size, protocol, async_set=False, streaming=False):
+    def __init__(self, triton_client, use_cpu, model_name, model_version, batch_size, protocol, async_set=False, streaming=False):
         self.triton_client = triton_client
+        self.use_cpu = use_cpu
         self.model_name = model_name
         self.model_version = model_version
         self.batch_size = batch_size
@@ -100,18 +124,25 @@ class Recognition:
         self.streaming = streaming        
         self.model_metadata = triton_client.get_model_metadata(
                                 model_name=model_name, model_version=model_version)
-        self.model_config = triton_client.get_model_config(
+        if self.use_cpu:
+            self.model_config = None
+        else:
+            self.model_config = triton_client.get_model_config(
                                 model_name=model_name, model_version=model_version)
         self.max_batch_size = None
         self.input_name = None
         self.output_name = None
         self.dtype = None
         if self.protocol.lower() == "grpc":
-            self.max_batch_size, self.input_name, self.output_name, self.dtype = parse_model_grpc(
+            if self.use_cpu:
+                self.max_batch_size, self.input_name, self.output_name, self.dtype = cpu_parse_model_grpc(self.model_metadata)
+            else:
+                self.max_batch_size, self.input_name, self.output_name, self.dtype = parse_model_grpc(
                                                                                 self.model_metadata, self.model_config.config)
         else:
             self.max_batch_size, self.input_name, self.output_name, self.dtype = parse_model_http(
                                                                                 self.model_metadata, self.model_config)
+                                                                                
 
     # Callback function used for async_stream_infer()
     def completion_callback(self, user_data, result, error):
@@ -126,6 +157,9 @@ class Recognition:
         input_blob = np.expand_dims(img, axis=0).astype(np.float32) #NCHW
         images_data.append(input_blob)
 
+        if self.use_cpu:
+            return input_blob, filename
+
         return images_data, filename
 
     # postprocess the output data and print
@@ -134,10 +168,12 @@ class Recognition:
         if len(output_array) != batch_size:
             raise Exception("expected {} results, got {}".format(
                 batch_size, len(output_array)))
-        distances = None
-        indexes = None
 
         # Include special handling for non-batching models
+        if self.use_cpu:
+            normalized_feature = normalize(output_array).flatten()
+            return normalized_feature
+
         for results in output_array:
             if not batching:
                 results = [results]
@@ -284,3 +320,15 @@ class Recognition:
         #                 'height_y':height_y, 'camera_id':camera_id, 'server_id':server_id,
         #                 'face_id':face_id, 'crop_time':crop_time, 'vector': vector.tolist()}
         # producer.send(FLAGS.kafka_producer_topic, value = producer_data)
+
+
+    def cpu_get_feature(self, aligned_image, filename):
+        image_data, filenames = self.preprocess(aligned_image, filename)
+
+        infer_input = grpcclient.InferInput(self.model_metadata.inputs[0].name, image_data.shape, self.model_metadata.inputs[0].datatype)
+        infer_input.set_data_from_numpy(image_data)
+        results = self.triton_client.infer(self.model_name, [infer_input])
+
+        vector = self.reco_postprocess(results, self.model_metadata.outputs[0].name, 1, 1 > 0)
+        
+        return vector

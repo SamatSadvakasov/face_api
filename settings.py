@@ -1,11 +1,12 @@
 import os
 from pathlib import Path
 
+use_cpu = True
 ip = '127.0.0.1'
 gpu_http_port = '30020'
 gpu_grpc_port = '30021'
-cpu_grpc_port = '30022'
-cpu_http_port = '30023'
+cpu_grpc_port = '30023'
+cpu_http_port = '30024'
 protocol = 'grpc'
 
 det_model = 'detect'

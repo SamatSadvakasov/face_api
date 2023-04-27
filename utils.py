@@ -12,8 +12,10 @@ def calculate_cosine_distance(db_result, vector, threshold):
     idx = None
     dist = None
     for row in db_result:
+        #print(row)
         vec = np.fromstring(row[1][1:-1], dtype=float, sep=',')
-        dist = np.dot(vec,vector)
+        print(vec)
+        dist = np.dot(vec,vector.T)
         if dist > distance:
             idx = row[0]
     return idx, dist
@@ -36,7 +38,6 @@ def get_alignment(face, landmarks, image):
         return aligned
     else:
         return None
-
 
 
 def process_faces(img, faces, landmarks):
