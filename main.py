@@ -19,7 +19,7 @@ import time
 
 app = FastAPI()
 
-def create_triton_client(server, protocol, verbose, async_set):
+def create_triton_client(server, protocol, verbose, async_set, cpu_server):
     triton_client = None
     if protocol == "grpc":
         # Create gRPC client for communicating with the server
@@ -30,7 +30,7 @@ def create_triton_client(server, protocol, verbose, async_set):
         triton_client = httpclient.InferenceServerClient(url=server, verbose=verbose, concurrency=concurrency)
     return triton_client
 
-triton_client = create_triton_client(settings.TRITON_SERVER_SETTINGS[0], settings.TRITON_SERVER_SETTINGS[1], settings.TRITON_SERVER_SETTINGS[2], settings.TRITON_SERVER_SETTINGS[3])
+triton_client = create_triton_client(settings.TRITON_SERVER_SETTINGS[0], settings.TRITON_SERVER_SETTINGS[1], settings.TRITON_SERVER_SETTINGS[2], settings.TRITON_SERVER_SETTINGS[3], settings.TRITON_SERVER_SETTINGS[4])
 detector = Detector(triton_client, settings.DETECTOR_SETTINGS[0], settings.DETECTOR_SETTINGS[1], settings.DETECTOR_SETTINGS[2], settings.DETECTOR_SETTINGS[3], settings.DETECTOR_SETTINGS[4], settings.DETECTOR_SETTINGS[5], settings.DETECTOR_SETTINGS[6])
 recognizer = Recognition(triton_client, settings.RECOGNITION_SETTINGS[0], settings.RECOGNITION_SETTINGS[1], settings.RECOGNITION_SETTINGS[2], settings.RECOGNITION_SETTINGS[3], settings.RECOGNITION_SETTINGS[4])
 db_worker = PowerPost(settings.PG_CONNECTION[0], settings.PG_CONNECTION[1], settings.PG_CONNECTION[2], settings.PG_CONNECTION[3], settings.PG_CONNECTION[4])

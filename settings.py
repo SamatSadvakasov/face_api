@@ -2,8 +2,10 @@ import os
 from pathlib import Path
 
 ip = '127.0.0.1'
-http_port = '30020'
-grpc_port = '30021'
+gpu_http_port = '30020'
+gpu_grpc_port = '30021'
+cpu_grpc_port = '30022'
+cpu_http_port = '30023'
 protocol = 'grpc'
 
 det_model = 'detect'
@@ -15,7 +17,7 @@ min_head_size = 40
 DETECTION_THRESHOLD = 0.95
 RECOGNITION_THRESHOLD = 0.7
 
-TRITON_SERVER_SETTINGS = [ip + ':' + grpc_port, protocol, False, True]
+TRITON_SERVER_SETTINGS = [ip + ':' + gpu_grpc_port, protocol, False, True, ip + ':' + cpu_grpc_port]
 
 DETECTOR_SETTINGS = [det_model, '', 1, protocol, im_size, True, True]
 RECOGNITION_SETTINGS = [rec_model, '', 1, protocol, True, True]
