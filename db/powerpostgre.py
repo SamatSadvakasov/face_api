@@ -34,7 +34,7 @@ class PowerPost:
         return blob
 
 
-    def search_from_face_db(self, vector):
+    def get_top_one_from_face_db(self, vector):
         try:
             # connect to the PostgresQL database
             # FLAGS.psql_server, FLAGS.psql_server_port, FLAGS.psql_db, FLAGS.psql_user, FLAGS.psql_user_pass
@@ -49,7 +49,7 @@ class PowerPost:
                         (%(vector)s <-> fr.faces.vector) as distance
                         FROM fr.faces
                         ORDER BY %(vector)s <-> vector
-                        ASC LIMIT 10"""
+                        ASC LIMIT 1"""
             # execute statement
             cur.execute(select_query, {'vector': vector_str})
             # fetch all results from database response
@@ -63,22 +63,6 @@ class PowerPost:
             if conn is not None:
                 conn.close()
         return result
-        # distance = float(threshold)
-        # idx = None
-        # dist = None
-        # for row in result:
-        #     vec = np.fromstring(row[1][1:-1], dtype=float, sep=',')
-        #     try:
-        #         dist = np.dot(vec,vector)
-        #         if dist > distance:
-        #             idx = row[0]
-        #     except Exception as error:
-        #         print('Error: ' + str(error))
-        #         return idx, dist
-        # if idx is not None:
-        #     return idx, dist*100
-        # else:
-        #     return idx, dist
 
 
     def one_to_one(self, vector, person_id):

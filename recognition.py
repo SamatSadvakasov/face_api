@@ -203,21 +203,6 @@ class Recognition:
 
 
     def get_feature(self, aligned_image, filename, sent_count):
-        # if self.streaming and self.protocol.lower() != "grpc":
-        #     raise Exception("Streaming is only allowed with gRPC protocol")
-        # try:
-        #     if self.protocol.lower() == "grpc":
-        #         # Create gRPC client for communicating with the server
-        #         triton_client = grpcclient.InferenceServerClient(
-        #             url=self.url, verbose=self.verbose)
-        #     else:
-        #         # Specify large enough concurrency to handle the number of requests.
-        #         concurrency = 20 if self.async_set else 1
-        #         triton_client = httpclient.InferenceServerClient(
-        #             url=self.url, verbose=self.verbose, concurrency=concurrency)
-        # except Exception as e:
-        #     print("client creation failed: " + str(e))
-        #     sys.exit(1)
         image_data, filenames = self.preprocess(aligned_image, filename)
 
         # Send requests of FLAGS.batch_size images. If the number of
@@ -293,33 +278,9 @@ class Recognition:
                     responses.append(async_request.get_result())
 
         for (response, fname) in itertools.zip_longest(responses, result_filenames):
-            #if FLAGS.protocol.lower() == "grpc":
-            #    this_id = response.get_response().id
-            #else:
-            #    this_id = response.get_response()["id"]
-            #print("Request {}, file name {}, batch size {}".format(this_id, fname, FLAGS.batch_size))
             vector = self.reco_postprocess(response, self.output_name, self.batch_size, self.max_batch_size > 0)
 
         return vector
-        # # sending all metadata
-        # metadatas = event.value
-        # # ORIGINAL FRAME
-        # unique_id = metadatas['unique_id']
-        # rect_x = metadatas['rect_x']
-        # rect_y = metadatas['rect_y']
-        # width_x = metadatas['width_x']
-        # height_y = metadatas['height_y']
-        # # similarity = str(format(distance, '.2f'))
-        # camera_id = metadatas['camera_id']
-        # server_id = metadatas['server_id']
-        # # CROPS - unique_id, face_id, index_number, crop_time, camera_id
-        # face_id = metadatas['face_id']
-        # # red_id = index_number
-        # crop_time = metadatas['crop_time']
-        # producer_data = {'unique_id':unique_id, 'rect_x':rect_x, 'rect_y':rect_y, 'width_x':width_x,
-        #                 'height_y':height_y, 'camera_id':camera_id, 'server_id':server_id,
-        #                 'face_id':face_id, 'crop_time':crop_time, 'vector': vector.tolist()}
-        # producer.send(FLAGS.kafka_producer_topic, value = producer_data)
 
 
     def cpu_get_feature(self, aligned_image, filename):

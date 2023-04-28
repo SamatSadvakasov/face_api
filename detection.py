@@ -101,14 +101,9 @@ class Detector:
         # properties of the model that we need for preprocessing
         self.detection_model_metadata = None
         self.use_cpu = use_cpu
-        # print(self.triton_client)
-        # print(self.model_name)
-        # print(self.model_version)
         try:
             self.detection_model_metadata = self.triton_client.get_model_metadata(
                                         model_name=model_name, model_version=model_version)
-            # print('-----------Model metadata-----------')
-            # print(self.detection_model_metadata)
         except InferenceServerException as e:
             print("failed to retrieve the metadata: " + str(e))
             sys.exit(1)
@@ -159,7 +154,6 @@ class Detector:
         else:
             resized_img = img.copy()
 
-        #print('Resized shape:', resized_img.shape)
         resized_img = cv2.cvtColor(resized_img, cv2.COLOR_BGR2RGB)
 
         dim_changed = np.transpose(resized_img, (2,0,1)) #HWC->CHW
@@ -177,7 +171,6 @@ class Detector:
             return input_blob, scales, im_shape
 
         return images_data, scales, filenames, im_shape
-        # return input_blob, scales, im_shape
 
 
     def requestGenerator(self, batched_image_data, input_name, output_metadata, dtype):
@@ -188,17 +181,12 @@ class Detector:
                 grpcclient.InferInput(input_name, batched_image_data.shape, dtype))
             inputs[0].set_data_from_numpy(batched_image_data)
         else:
-            #print('enter')
-            #print(batched_image_data.shape)
             inputs.append(httpclient.InferInput(input_name, batched_image_data.shape, dtype))
             inputs[0].set_data_from_numpy(batched_image_data, binary_data=True)
-            #print(inputs[0])
-            #print('exit')
 
         output_names = [ output.name if self.protocol.lower() == "grpc"
                             else output['name'] for output in output_metadata ]
-     
-        # print(batched_image_data.shape)
+
         outputs = []
         for output_name in output_names:
             if self.protocol.lower() == "grpc":
@@ -206,7 +194,6 @@ class Detector:
             else:
                 outputs.append(httpclient.InferRequestedOutput(output_name, binary_data=True))
 
-        #print(len(outputs))
         yield inputs, outputs, self.model_name, self.model_version, output_names
 
 
@@ -300,11 +287,6 @@ class Detector:
                 for async_request in async_requests:
                     responses.append(async_request.get_result())
         for (response, fname) in itertools.zip_longest(responses, result_filenames):
-            # if FLAGS.protocol.lower() == "grpc":
-            #    this_id = response.get_response().id
-            # else:
-            #    this_id = response.get_response()["id"]
-            # print("Request {}, file name {}, batch size {}".format(this_id, fname, FLAGS.batch_size))
             faces, landmarks = self.triton_postprocessing(response, output_names, detection_threshold, im_scale, self.scales)
         return faces, landmarks
 

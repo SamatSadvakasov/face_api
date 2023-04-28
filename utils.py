@@ -11,10 +11,9 @@ def calculate_cosine_distance(db_result, vector, threshold):
     distance = float(threshold)
     idx = None
     dist = None
+    # for each row from database results do cosine similarity
     for row in db_result:
-        #print(row)
         vec = np.fromstring(row[1][1:-1], dtype=float, sep=',')
-        print(vec)
         dist = np.dot(vec,vector.T)
         if dist > distance:
             idx = row[0]
@@ -43,13 +42,11 @@ def get_alignment(face, landmarks, image):
 def process_faces(img, faces, landmarks):
     face_count = 0
     result = []
-
+    # creating a folder for today's requests' photos if it doesn't exist
     todays_folder = os.path.join(settings.CROPS_FOLDER, datetime.now().strftime("%Y%m%d"))
-    # print(todays_folder)
     if not os.path.exists(todays_folder):
         os.makedirs(todays_folder)
 
-    # img_name = str(round(time.time() * 1000000))
     img_name = str(uuid.uuid4())
     new_img_folder = os.path.join(todays_folder, img_name)
     if not os.path.exists(new_img_folder):
@@ -59,7 +56,7 @@ def process_faces(img, faces, landmarks):
     if img.shape[0] == 112:
         cv2.imwrite(new_img_folder+'/crop_'+'0.jpg', img)
         cv2.imwrite(new_img_folder+'/align_'+'0.jpg', img)
-        # print('Aligned image saved:', new_img_folder+'/align_'+'0.jpg', img.shape)
+
         result.append(face_count)
         face_count += 1
     else:
@@ -108,7 +105,6 @@ def process_faces(img, faces, landmarks):
                 # save crop and aligned image
                 cv2.imwrite(new_img_folder+'/crop_'+str(i)+'.jpg', cropped_img)
                 cv2.imwrite(new_img_folder+'/align_'+str(i)+'.jpg', aligned)
-                # print('Align saved:', new_img_folder+'/align_'+str(i)+'.jpg', aligned.shape)
                 result.append(face_count)
                 face_count += 1
             else:
@@ -123,13 +119,11 @@ def process_faces(img, faces, landmarks):
 def process_and_draw_rectangles(img, faces, landmarks):
     face_count = 0
     result = []
-
+    # creating a folder for today's requests' photos if it doesn't exist
     todays_folder = os.path.join(settings.CROPS_FOLDER, datetime.now().strftime("%Y%m%d"))
-    # print(todays_folder)
     if not os.path.exists(todays_folder):
         os.makedirs(todays_folder)
 
-    # img_name = str(round(time.time() * 1000000))
     img_name = str(uuid.uuid4())
     new_img_folder = os.path.join(todays_folder, img_name)
     if not os.path.exists(new_img_folder):
@@ -139,7 +133,7 @@ def process_and_draw_rectangles(img, faces, landmarks):
     if img.shape[0] == 112:
         cv2.imwrite(new_img_folder+'/crop_'+'0.jpg', img)
         cv2.imwrite(new_img_folder+'/align_'+'0.jpg', img)
-        # print('Aligned image saved:', new_img_folder+'/align_'+'0.jpg', img.shape)
+
         result.append(face_count)
         face_count += 1
     else:
@@ -191,7 +185,6 @@ def process_and_draw_rectangles(img, faces, landmarks):
                 # save crop and aligned image
                 # cv2.imwrite(new_img_folder+'/crop_'+str(i)+'.jpg', cropped_img)
                 # cv2.imwrite(new_img_folder+'/align_'+str(i)+'.jpg', aligned)
-                # print('Align saved:', new_img_folder+'/align_'+str(i)+'.jpg', aligned.shape)
                 result.append(face_count)
                 face_count += 1
             else:

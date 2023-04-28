@@ -76,6 +76,7 @@ async def detect_from_photo(response: Response, file: UploadFile = File(...)):
             # [os.remove(settings.CROPS_FOLDER + f) for f in os.listdir(settings.CROPS_FOLDER)]
             faces = None
             landmarks = None
+            # using either gpu or cpu to get feature - the use_cpu is in settings.py
             if settings.use_cpu:
                 faces, landmarks = detector.cpu_detect(image, name, settings.DETECTION_THRESHOLD)
             else:
@@ -117,17 +118,15 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
     if os.path.exists(file_path):
         img = cv2.imread(file_path)
         feature = None
+        # using either gpu or cpu to get feature - the use_cpu is in settings.py
         if settings.use_cpu:
             feature = recognizer.cpu_get_feature(img, unique_id+'_'+img_name)
         else:
             feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
 
-        # get top one - revise
-        db_result = db_worker.search_from_face_db(feature)
-        # print('db_result:', db_result[0][1])
-        #vec = np.fromstring(db_result[0][1][1:-1], dtype=float, sep=',')
-        #print(vec)
-        #print(np.dot(vec, feature))
+        # get top one from database of people
+        db_result = db_worker.get_top_one_from_face_db(feature)
+
         if len(db_result) > 0:
             ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)
             if ids is not None:
@@ -137,7 +136,7 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
                         'message': {
                                     'id': ids,
                                     'name': l_name,
-                                    'similarity': round(distances, 2)
+                                    'similarity': round(distances, 2)*100
                                 }
                     }
         else:
@@ -154,15 +153,14 @@ async def check_person(response: Response, date: str = Form(...), unique_id: str
     file_path = os.path.join(settings.CROPS_FOLDER, date, unique_id, img_name+'.jpg')
     if os.path.exists(file_path):
         img = cv2.imread(file_path)
+        # using either gpu or cpu to get feature - the use_cpu is in settings.py
         if settings.use_cpu:
             feature = recognizer.cpu_get_feature(img, unique_id+'_'+img_name)
         else:
             feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
 
-        print('cosine:', np.dot(feature,feature))
         db_result = db_worker.one_to_one(feature, person_id)
         if len(db_result) > 0:
-            # print(type(db_result[0]))
             ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)
             if ids is not None:
                 l_name = db_worker.search_from_persons(ids)
@@ -171,7 +169,7 @@ async def check_person(response: Response, date: str = Form(...), unique_id: str
                         'message': 'Person matches with person in Database',
                         'id': ids,
                         'name': l_name,
-                        'similarity': round(distances, 2)
+                        'similarity': round(distances, 2)*100
                         }
         else:
             response.status_code = status.HTTP_409_CONFLICT
@@ -195,12 +193,13 @@ async def add_person_to_face_db(response: Response,
     if os.path.exists(file_path):
         img = cv2.imread(file_path)
         feature = None
+        # using either gpu or cpu to get feature - the use_cpu is in settings.py
         if settings.use_cpu:
             feature = recognizer.cpu_get_feature(img, unique_id)
         else:
             feature = recognizer.get_feature(img, unique_id, 0)
-
-        db_result = db_worker.search_from_face_db(feature)
+        # getting database results so not to add existing person again
+        db_result = db_worker.get_top_one_from_face_db(feature)
         if len(db_result) > 0:
             ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)
             if ids is not None:
@@ -210,7 +209,7 @@ async def add_person_to_face_db(response: Response,
                         'result': 'error',
                         'message': 'Person is already registered in database.',
                         'name': l_name,
-                        'similarity': round(distances, 2)
+                        'similarity': round(distances, 2)*100
                         }
 
         result = db_worker.insert_new_person(unique_id, feature, person_name, person_surname, person_secondname, create_time, group_id, person_iin)
@@ -239,7 +238,7 @@ async def compare_two_photos(response: Response, file_1: UploadFile = File(...),
                 image = cv2.imdecode(image, cv2.IMREAD_COLOR)
             except:
                 return {'result': False, 'message': 'One photo is broken or empty'}
-            # print('Image shape:', image.shape)
+
             faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
             if faces.shape[0] > 0:
                 for i in range(faces.shape[0]):
