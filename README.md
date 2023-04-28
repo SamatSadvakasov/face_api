@@ -4,7 +4,8 @@ The implementation of face detection and recognition service using [Retinaface](
 ### Installation
 > git clone https://github.com/Talgin/face_api.git
 - Change settings.py to point to desired service addresses
-- Create folders: aligned
+- Change settings.py to use either cpu or gpu (use_cpu flag)
+- Create folders: crops
 
 ### Running the service
 > docker-compose up -d
@@ -17,6 +18,8 @@ Sometimes you can encounter bbox errors. One solution can be to:
 ### CHANGE HISTORY (started this in 30.12.2022)
 - 30.12.2022 - created new functionality (insert_new_person) to insert into faces and person to be able to revert changes if one of the inserts fail
 - 02.01.2023 - changed SQL scripts to a new (more secure) style, created utils.py
+- 1-20.04.2023 - changed main.py and cpu processing pipeline, used new method of model serving (OpenVINO) and changed underlying functionality of processing and configuration.
+- 20-28.04.2023 - changed script to work with database and retrieve results (bug fixing).
 
 ### TO-DO
 - [x] Function to add person to postgres database (unique_id, vector)
@@ -25,7 +28,7 @@ Sometimes you can encounter bbox errors. One solution can be to:
 - [x] Functionality to compare two photos
 - [ ] Finish unit-tests
 - [ ] Write comments for each function
-- [ ] Accept multiple requests at one time - think about it
+- [ ] Accept more than maximum requests at one time - think about it
 - [ ] Refine code (object reusability, client creation, database connection, configs)
 - [ ] Refine face recognition algo - change QMagFace as it may have some errors during deployment
 - [ ] Add Metadata and Docs descriptions according to [FastAPI Docs](https://fastapi.tiangolo.com/tutorial/metadata/)
