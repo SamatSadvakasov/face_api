@@ -1,7 +1,7 @@
 version: '3'
 services:
   face_api:
-    image: face_api_image:v1
+    image: talgin/face_api_image:v1
     container_name: face_api
     restart: unless-stopped
     network_mode: host
@@ -17,13 +17,3 @@ services:
       - LC_ALL=C.UTF-8
       - LANG=C.UTF-8
     command: uvicorn main:app --host 0.0.0.0 --port 9999 --forwarded-allow-ips "*" --reload
-    #depends_on:
-    #  - tritonserver
-    # docker run --name face_api -it --network=host -v ${PWD}/face_api:/app face_api_image:v1
-    #deploy:
-    #  resources:
-    #    reservations:
-    #      devices:
-    #        - driver: nvidia
-    #          count: 1
-    #          capabilities: [gpu]
