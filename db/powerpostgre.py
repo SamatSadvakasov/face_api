@@ -92,18 +92,6 @@ class PowerPost:
             if conn is not None:
                 conn.close()
         return result
-        # distance = float(threshold)
-        # idx = None
-        # dist = None
-        # for row in result:
-        #     vec = np.fromstring(row[1][1:-1], dtype=float, sep=',')
-        #     dist = np.dot(vec,vector)
-        #     if dist > distance:
-        #         idx = row[0]
-        # if idx is not None:
-        #     return idx, dist*100
-        # else:
-        #     return idx, dist
 
 
     def insert_new_person(self, unique_id, vector, person_name, person_surname, person_secondname, create_time, group_id, person_iin):
@@ -243,3 +231,26 @@ class PowerPost:
             if conn is not None:
                 conn.close()
         return True
+
+
+    def search_from_gbdfl_faiss_top_n(self, faiss_index, one_vector, top_n):
+        try:
+            topn = 1
+            if faiss_index.ntotal >= top_n:
+                topn = top_n
+            else:
+                topn = faiss_index.ntotal
+            nprb = 4096 
+            if faiss_index.ntotal > 1000000:
+                faiss_index.nprobe = nprb
+                print('new probe')
+            else:
+                faiss_index.nprobe = 256
+            print('ntotal:', faiss_index.ntotal)
+            print('nprobe:', nprb)
+            query = np.array([one_vector], dtype=np.float32)
+            D, I = faiss_index.search(query, topn)
+
+            return D, I
+        except:
+            return None, None

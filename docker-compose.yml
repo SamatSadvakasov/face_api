@@ -6,8 +6,9 @@ services:
     restart: unless-stopped
     network_mode: host
     volumes:
+      - ${PWD}:/app
       - /home/talgat/PROJECTS/INFERENCE/crops:/crops
-    working_dir: /face_api
+    working_dir: /app
     shm_size: 1g
     ulimits:
       memlock: -1
@@ -15,4 +16,4 @@ services:
     environment:
       - LC_ALL=C.UTF-8
       - LANG=C.UTF-8
-    command: gunicorn main:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:9999 --forwarded-allow-ips "*" --workers 6 --log-level debug
+    command: gunicorn main:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:9999 --forwarded-allow-ips "*" --workers 6 --log-level debug --reload

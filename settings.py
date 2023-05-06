@@ -46,3 +46,10 @@ pg_username = 'face_reco_admin'                     # os.environ['FASTAPI_PG_USE
 pg_password = 'qwerty123'                           # os.environ['FASTAPI_PG_PASS'] #qwerty123                      #Postgresdb password
 # postgres connection settings: host, port, dbname, user, pwd
 PG_CONNECTION = [pg_server, pg_port, pg_db, pg_username, pg_password]
+# FAISS index settings
+FAISS_INDEX_FILE = '/final_index/populated.index'
+VECTOR_DIMENSIONS = 512
+INDEX_TYPE = 'IVF1,Flat'
+FAISS_THRESHOLD = 65
+TRAINED_INDEX_PATH = '/trained_index/trained.index'
+ALL_INDEXES_PATH = '/storage/indexes'
