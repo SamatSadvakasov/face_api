@@ -16,4 +16,5 @@ services:
     environment:
       - LC_ALL=C.UTF-8
       - LANG=C.UTF-8
-    command: gunicorn main:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:9999 --forwarded-allow-ips "*" --workers 6 --log-level debug --reload
+    # command: gunicorn main:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:9999 --forwarded-allow-ips "*" --workers 6 --log-level debug --reload
+    command: uvicorn main:app --host 0.0.0.0 --port 9999 --forwarded-allow-ips "*" --workers 6 --log-level debug --reload

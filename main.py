@@ -127,8 +127,54 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
         else:
             feature = recognizer.get_feature(img, unique_id+'_'+img_name, 0)
 
-        # get top one from database of people
-        db_result = db_worker.get_top_one_from_face_db(feature)
+        if settings.use_postgres:
+            # get top one from postgres database of people
+            db_result = db_worker.get_top_one_from_face_db(feature)
+        else:
+            if faiss_index.ntotal > 0:
+                distances, indexes = db_worker.search_from_gbdfl_faiss_top_n(faiss_index, feature, 1)
+            else:
+                return {'result': 'error', 'message': 'FAISS index is empty.'}
+        
+            if indexes is not None:
+                result_dict = dict()
+                ids = tuple(list(map(str,indexes[0])))
+                # ids = str(list(indexes[0]))[1:-1]
+                print("IDs", ids)
+                with_zeros = []
+                str_ids = list(map(str, indexes[0]))
+                for i in str_ids:
+                    while len(i) < 9:
+                        i = "0" + i
+                    with_zeros.append(i)
+                print('ZEROs ADDED:', with_zeros)
+                from_ud_gr = db_worker.get_blob_from_ud_gr(tuple(with_zeros))
+                print('FROM DATABASE:', from_ud_gr)
+                if from_ud_gr is not None:
+                    scores_val = dict(zip(list(with_zeros),list(distances[0])))
+                    print('DICTIONARY:', scores_val)
+                    for i in range(len(from_ud_gr)):
+                        dist = scores_val[from_ud_gr[i][0]]
+                        ud_code = from_ud_gr[i][0]
+                        gr_code = from_ud_gr[i][1]
+                        surname = from_ud_gr[i][2]
+                        firstname = from_ud_gr[i][3]
+                        if from_ud_gr[i][4] is None:
+                            secondname = ''
+                        else:
+                            secondname = from_ud_gr[i][4]
+                        fio = surname +' '+ firstname +' '+secondname
+                        result_dict[str(from_ud_gr[i][0])] = {
+                                                                'distance': round(dist*100, 2),
+                                                                'iin': gr_code,
+                                                                'ud_number': ud_code,
+                                                                'surname': surname,
+                                                                'firstname': firstname,
+                                                                'secondname': secondname
+                                                                }
+                    print('RESULT DICT:', result_dict)
+                    return result_dict
+            return {'result': 'error', unique_id: "ud_gr is empty"}
 
         if len(db_result) > 0:
             ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)

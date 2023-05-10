@@ -26,6 +26,8 @@ Sometimes you can encounter bbox errors. One solution can be to:
 - [x] Finish utils.py
 - [x] Revert changes to database if insert to some of the tables fails (finish this part!!!!!!!!!)
 - [x] Functionality to compare two photos
+- [ ] Finish FAISS integration for large database (current)
+- [ ] Try ScaNN
 - [ ] Finish unit-tests
 - [ ] Write comments for each function
 - [ ] Accept more than maximum requests at one time - think about it

@@ -240,14 +240,12 @@ class PowerPost:
                 topn = top_n
             else:
                 topn = faiss_index.ntotal
-            nprb = 4096 
+            nprb = 4096
             if faiss_index.ntotal > 1000000:
                 faiss_index.nprobe = nprb
-                print('new probe')
             else:
                 faiss_index.nprobe = 256
-            print('ntotal:', faiss_index.ntotal)
-            print('nprobe:', nprb)
+            # print('ntotal:', faiss_index.ntotal)
             query = np.array([one_vector], dtype=np.float32)
             D, I = faiss_index.search(query, topn)
 
