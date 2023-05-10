@@ -187,7 +187,7 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
                         'message': {
                                     'id': ids,
                                     'name': l_name,
-                                    'similarity': round(distances, 2)*100
+                                    'similarity': round(distances * 100, 2)
                                 }
                     }
         else:
@@ -220,7 +220,7 @@ async def check_person(response: Response, date: str = Form(...), unique_id: str
                         'message': 'Person matches with person in Database',
                         'id': ids,
                         'name': l_name,
-                        'similarity': round(distances, 2)*100
+                        'similarity': round(distances * 100, 2)
                         }
         else:
             response.status_code = status.HTTP_409_CONFLICT
@@ -260,7 +260,7 @@ async def add_person_to_face_db(response: Response,
                         'result': 'error',
                         'message': 'Person is already registered in database.',
                         'name': l_name,
-                        'similarity': round(distances, 2)*100
+                        'similarity': round(distances * 100, 2)
                         }
 
         result = db_worker.insert_new_person(unique_id, feature, person_name, person_surname, person_secondname, create_time, group_id, person_iin)
@@ -290,13 +290,20 @@ async def compare_two_photos(response: Response, file_1: UploadFile = File(...),
             except:
                 return {'result': 'error', 'message': 'One photo is broken or empty'}
 
-            faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
+            if settings.use_cpu:
+                faces, landmarks = detector.cpu_detect(image, name, settings.DETECTION_THRESHOLD)
+            else:
+                faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
+
             if faces.shape[0] > 0:
                 for i in range(faces.shape[0]):
                     aligned = utils.get_alignment(faces[i], landmarks[i], image)
                     if aligned is not None:
                         # Get 512-d embedding from aligned image
-                        feature = recognizer.get_feature(aligned, unique_id+'_'+name, 0)
+                        if settings.use_cpu:
+                            feature = recognizer.cpu_get_feature(aligned, unique_id)
+                        else:
+                            feature = recognizer.get_feature(aligned, unique_id, 0)
                         feature_list.append(feature)
                     else:
                         return {'result': 'error', 'message': 'Face not detected or sharp angle'}
@@ -308,7 +315,7 @@ async def compare_two_photos(response: Response, file_1: UploadFile = File(...),
             similarity = cosine_dist
         else:
             similarity = 0
-        return {'result': 'success', 'message': similarity}
+        return {'result': 'success', 'message': round(similarity * 100, 2)}
     else:
         return {'result': 'error', 'message': 'No photo provided'}
 
@@ -327,7 +334,11 @@ async def detect_and_draw(response: Response, file: UploadFile = File(...)):
             face_list = [i for i in range(len(res))]
             return {'result': 'success', 'unique_id': unique_id, 'faces': 1, 'filetype': file.content_type, 'size': image.shape}
         else:
-            faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
+            if settings.use_cpu:
+                faces, landmarks = detector.cpu_detect(image, name, settings.DETECTION_THRESHOLD)
+            else:
+                faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
+
             if faces.shape[0] == 1:
                 res, unique_id, img = utils.process_and_draw_rectangles(image, faces, landmarks)
                 if len(res) > 0:

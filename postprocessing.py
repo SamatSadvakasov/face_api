@@ -32,7 +32,7 @@ def bbox_pred(boxes, box_deltas):
     pred_h = np.exp(dh) * heights[:, np.newaxis]
 
     pred_boxes = np.zeros(box_deltas.shape)
-    print("pred_boxes.shape:", pred_boxes.shape)
+    # print("pred_boxes.shape:", pred_boxes.shape)
     # x1
     pred_boxes[:, 0:1] = pred_ctr_x - 0.5 * (pred_w - 1.0)
     # y1
@@ -198,7 +198,7 @@ def postprocess(net_out, threshold, ctx_id, im_scale, im_info):
 
         #proposals[:,0:4] /= im_scale
 
-        print(proposals[:,0])
+        # print(proposals[:,0])
         proposals[:,0] /= im_scale[0]
         #print(pp)
         proposals[:,1] /= im_scale[1]
@@ -214,7 +214,7 @@ def postprocess(net_out, threshold, ctx_id, im_scale, im_info):
             strides_list.append(_strides)
         if not vote and use_landmarks:
             landmark_deltas = net_out[sym_idx+2] #.asnumpy()
-            print('landmark_deltas:', landmark_deltas)
+            # print('landmark_deltas:', landmark_deltas)
             landmark_pred_len = landmark_deltas.shape[1]//A
             landmark_deltas = landmark_deltas.transpose((0, 2, 3, 1)).reshape((-1, 5, landmark_pred_len//5))
             landmark_deltas *= landmark_std

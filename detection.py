@@ -166,7 +166,7 @@ class Detector:
         images_data.append(input_blob)
         filenames.append(filename)
 
-        print('cpu:', self.use_cpu)
+        # print('cpu:', self.use_cpu)
         if self.use_cpu:
             return input_blob, scales, im_shape
 
@@ -202,12 +202,12 @@ class Detector:
         """
         Post-process results to show classifications.
         """
-        print('results:', results)
+        # print('results:', results)
         output_dict = {}
         outputs = []
         for output_name in output_names:
-            print('output name:', output_name)
-            print('len(results.as_numpy(output_name)):', len(results.as_numpy(output_name)))
+            # print('output name:', output_name)
+            # print('len(results.as_numpy(output_name)):', len(results.as_numpy(output_name)))
             outputs.append(results.as_numpy(output_name))
 
         faces, landmarks = postprocess(outputs, threshold, 0, im_scale, scales)
