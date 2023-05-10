@@ -286,7 +286,7 @@ async def compare_two_photos(response: Response, file_1: UploadFile = File(...),
             try:
                 image = cv2.imdecode(image, cv2.IMREAD_COLOR)
             except:
-                return {'result': False, 'message': 'One photo is broken or empty'}
+                return {'result': 'error', 'message': 'One photo is broken or empty'}
 
             faces, landmarks = detector.detect(image, name, 0, settings.DETECTION_THRESHOLD)
             if faces.shape[0] > 0:
@@ -297,18 +297,18 @@ async def compare_two_photos(response: Response, file_1: UploadFile = File(...),
                         feature = recognizer.get_feature(aligned, unique_id+'_'+name, 0)
                         feature_list.append(feature)
                     else:
-                        return {'result': False, 'message': 'Face not detected or sharp angle'}
+                        return {'result': 'error', 'message': 'Face not detected or sharp angle'}
             else:
                 # There are no faces or no faces that we can detect
-                return {'result': False, 'message': 'No faces or no faces that we can detect '}
+                return {'result': 'error', 'message': 'No faces or no faces that we can detect '}
         cosine_dist = np.dot(feature_list[0], feature_list[1])
         if int(cosine_dist*100) > 0:
             similarity = cosine_dist
         else:
             similarity = 0
-        return {'result': True, 'message': similarity}
+        return {'result': 'success', 'message': similarity}
     else:
-        return {'result': False, 'message': 'No photo provided'}
+        return {'result': 'error', 'message': 'No photo provided'}
 
 
 @app.post("/detector/detect_and_draw", status_code=200)
@@ -340,14 +340,14 @@ async def detect_and_draw(response: Response, file: UploadFile = File(...)):
                     return FileResponse(unique_id)
                 else:
                     response.status_code = status.HTTP_412_PRECONDITION_FAILED
-                    return {'result': 'no_faces', 'amount': int(faces.shape[0])}
+                    return {'result': 'error', 'message': 'no_faces', 'amount': int(faces.shape[0])}
             elif faces.shape[0] > 1:
                 response.status_code = status.HTTP_412_PRECONDITION_FAILED
-                return {'result': 'more_than_one_face', 'amount': int(faces.shape[0])}
+                return {'result': 'error', 'message': 'more_than_one_face', 'amount': int(faces.shape[0])}
             else:
                 # There are no faces or no faces that we can detect
                 response.status_code = status.HTTP_412_PRECONDITION_FAILED
-                return {'result': 'no_faces', 'amount': int(faces.shape[0])}
+                return {'result': 'error', 'message': 'no_faces', 'amount': int(faces.shape[0])}
     else:
         response.status_code = status.HTTP_404_NOT_FOUND
         return {'result': 'error', 'message': 'No photo provided. Please, check that you are sending correct file.'}
