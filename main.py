@@ -148,7 +148,7 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
                         i = "0" + i
                     with_zeros.append(i)
                 print('ZEROs ADDED:', with_zeros)
-                from_ud_gr = db_worker.get_blob_from_ud_gr(tuple(with_zeros))
+                from_ud_gr = db_worker.get_blob_info_from_database(tuple(with_zeros))
                 print('FROM DATABASE:', from_ud_gr)
                 if from_ud_gr is not None:
                     scores_val = dict(zip(list(with_zeros),list(distances[0])))
@@ -165,6 +165,7 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
                             secondname = from_ud_gr[i][4]
                         fio = surname +' '+ firstname +' '+secondname
                         result_dict[str(from_ud_gr[i][0])] = {
+                                                                'result': 'success',
                                                                 'distance': round(dist*100, 2),
                                                                 'iin': gr_code,
                                                                 'ud_number': ud_code,
@@ -174,7 +175,8 @@ async def get_photo_metadata(response: Response, date: str = Form(...), unique_i
                                                                 }
                     print('RESULT DICT:', result_dict)
                     return result_dict
-            return {'result': 'error', unique_id: "ud_gr is empty"}
+            else:
+                return {'result': 'error', 'message': 'ud_gr is empty'}
 
         if len(db_result) > 0:
             ids, distances = utils.calculate_cosine_distance(db_result, feature, settings.RECOGNITION_THRESHOLD)

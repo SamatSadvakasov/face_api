@@ -8,6 +8,7 @@ services:
     volumes:
       - ${PWD}:/app
       - /home/talgat/PROJECTS/INFERENCE/crops:/crops
+      - /home/talgat/PROJECTS/INFERENCE/final_index:/final_index
     working_dir: /app
     shm_size: 1g
     ulimits:

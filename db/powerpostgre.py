@@ -252,3 +252,35 @@ class PowerPost:
             return D, I
         except:
             return None, None
+
+
+    def get_blob_info_from_database(self, ids):
+        # Search from big database according to given red_id from faiss index with face vectors
+        conn = None
+        iin = None
+        #print(ids)
+        try:
+            # connect to the PostgresQL database
+            conn = psycopg2.connect(host=self.host, port=self.port, dbname=self.dbname, user=self.user, password=self.pwd)
+            # create a new cursor object
+            cur = conn.cursor()
+            # execute the INSERT statement
+            if len(ids) == 1:
+                sql_str = "SELECT ud_code,gr_code,lastname,firstname,secondname FROM fr.unique_ud_gr WHERE ud_code = '{ids}'".format(ids=ids[0])
+            else:
+                sql_str = "SELECT ud_code,gr_code,lastname,firstname,secondname FROM fr.unique_ud_gr WHERE ud_code in {ids}".format(ids=ids)
+            print(sql_str)
+            #print(sql_str)
+            cur.execute(sql_str)
+            # commit the changes to the database
+            blob = cur.fetchall()
+            print('database blob:', blob)
+            # close the communication with the PostgresQL database
+            cur.close()
+        except Exception as error:
+            print('Error: ' + str(error))
+            return None
+        finally:
+            if conn is not None:
+                conn.close()
+        return blob
