@@ -342,14 +342,9 @@ async def detect_and_draw(response: Response, file: UploadFile = File(...)):
             if faces.shape[0] == 1:
                 res, unique_id, img = utils.process_and_draw_rectangles(image, faces, landmarks)
                 if len(res) > 0:
-                    # face_list = [i for i in range(len(res))]
-                    # return {'result': 'success', 'unique_id': unique_id, 'faces': face_list, 'filetype': file.content_type, 'size': image.shape}
                     # Encode processed image back to bytes
-                    print(img.shape)
                     is_success, buffer = cv2.imencode(".jpg", img)
                     io_buf = io.BytesIO(buffer)
-                    # print(type(buffer))
-                    # return Response(content=buffer.tobytes(), media_type="image/jpeg")
                     return FileResponse(unique_id)
                 else:
                     response.status_code = status.HTTP_412_PRECONDITION_FAILED
